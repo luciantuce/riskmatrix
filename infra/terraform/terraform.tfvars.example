@@ -1,0 +1,10 @@
+# Copiază: cp terraform.tfvars.example terraform.tfvars
+# Apoi editează calea către cheia ta publică SSH.
+
+aws_region      = "eu-west-1"
+project_name    = "kit-platform-v2"
+instance_type   = "t3.small"
+public_key_path = "~/.ssh/id_ed25519.pub"
+
+# IP-uri din care e permis SSH (opțional – restricționează accesul)
+# ssh_cidrs = ["92.84.160.30/32", "82.79.162.153/32"]

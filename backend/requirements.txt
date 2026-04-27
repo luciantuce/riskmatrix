@@ -1,0 +1,15 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+sqlalchemy==2.0.23
+pydantic==2.5.0
+pydantic-settings==2.1.0
+reportlab==4.0.7
+
+# Database — Postgres driver (binary wheel, no system deps required)
+psycopg2-binary==2.9.9
+
+# Migrations
+alembic==1.13.1
+
+# Security — password hashing for admin credentials
+passlib[bcrypt]==1.7.4

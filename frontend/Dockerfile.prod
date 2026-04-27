@@ -1,0 +1,33 @@
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Build-time config: the API URL baked into the client bundle.
+# Railway: set NEXT_PUBLIC_API_URL in the frontend service to the backend's
+# public URL (e.g. https://backend-production.up.railway.app).
+ARG NEXT_PUBLIC_API_URL=http://localhost:8010
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+RUN npm install --omit=dev
+
+# Next.js honors $PORT automatically; Railway injects it at runtime.
+ENV PORT=3010
+EXPOSE 3010
+
+CMD ["npm", "start"]

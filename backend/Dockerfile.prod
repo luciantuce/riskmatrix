@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+# Non-root user for runtime
+RUN groupadd --system app && useradd --system --gid app app
+
+WORKDIR /app
+
+# Install deps first for better layer caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code
+COPY . .
+
+RUN chmod +x /app/start.sh && chown -R app:app /app
+USER app
+
+# Railway provides $PORT at runtime; start.sh honors it.
+# Default kept for local `docker run` without env.
+ENV PORT=8010
+EXPOSE 8010
+
+CMD ["/app/start.sh"]

@@ -1,0 +1,40 @@
+# Production-like stack for self-hosted deploys (e.g. EC2 with managed RDS).
+# On Railway you do NOT use this file — Railway provisions services from
+# backend/railway.json and frontend/railway.json directly. See DEPLOY.md.
+#
+# Required env in .env (or shell):
+#   DATABASE_URL, CORS_ORIGINS, NEXT_PUBLIC_API_URL,
+#   ADMIN_USERNAME, ADMIN_PASSWORD
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8010:8010"
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SEED_ON_STARTUP: ${SEED_ON_STARTUP:-false}
+    volumes:
+      - docs_v3:/app/docs_output
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "3010:3010"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  docs_v3:

@@ -1,0 +1,60 @@
+# Local development stack — mirrors Railway production layout (3 services).
+# Run:  docker compose up --build
+# Backend uses start.sh (Alembic upgrade + uvicorn); UVICORN_RELOAD enables --reload.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kit
+      POSTGRES_PASSWORD: kit
+      POSTGRES_DB: kit_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kit -d kit_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["/app/start.sh"]
+    ports:
+      - "8010:8010"
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://kit:kit@postgres:5432/kit_platform
+      CORS_ORIGINS: http://localhost:3010
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: dev-password-change-me
+      SEED_ON_STARTUP: "true"
+      UVICORN_RELOAD: "1"
+    volumes:
+      - ./backend:/app
+      - ./frontend/public/docs:/app/docs_output
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3010:3010"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8010
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
+volumes:
+  pg_data:
