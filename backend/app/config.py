@@ -1,7 +1,11 @@
+import ipaddress
+import logging
 from typing import List
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+_log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -27,6 +31,14 @@ class Settings(BaseSettings):
     # Protects /api/admin/* endpoints. Required in production.
     admin_username: str = "admin"
     admin_password: str = "change-me-in-production"
+
+    # --- IP allowlist (private beta gate) -----------------------------------
+    # Comma-separated list of IPs / CIDRs allowed to reach the API.
+    # Empty (default) disables the gate entirely (fail-open). Examples:
+    #   ALLOWED_IPS=86.55.123.45
+    #   ALLOWED_IPS=86.55.123.45,212.45.0.0/24,2a02:1234::/32
+    # /health is exempted so Railway healthchecks always pass.
+    allowed_ips: str = ""
 
     # --- Misc ---------------------------------------------------------------
     # Whether to run the auto-seeder on startup. Disable in production once
@@ -54,6 +66,25 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def allowed_networks(self) -> list:
+        """
+        Parse ALLOWED_IPS into a list of ip_network objects.
+        Empty list = no restriction (fail-open).
+        Invalid entries are logged and skipped, not raised.
+        """
+        out = []
+        for raw in self.allowed_ips.split(","):
+            entry = raw.strip()
+            if not entry:
+                continue
+            try:
+                # ip_network accepts both single IPs (auto /32 or /128) and CIDR
+                out.append(ipaddress.ip_network(entry, strict=False))
+            except ValueError:
+                _log.warning("Ignoring invalid ALLOWED_IPS entry: %r", entry)
+        return out
 
     @property
     def is_production(self) -> bool:

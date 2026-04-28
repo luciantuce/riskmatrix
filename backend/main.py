@@ -1,12 +1,17 @@
+import ipaddress
+import logging
 import secrets
 from io import BytesIO
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session, joinedload
+from starlette.middleware.base import BaseHTTPMiddleware
+
+_log = logging.getLogger(__name__)
 
 from app.config import settings
 from app.database import get_db
@@ -52,6 +57,60 @@ from app.seed_data import PROFILE_GENERAL_DEFINITION, seed_database
 # Base.metadata.create_all here in production.
 # ---------------------------------------------------------------------------
 app = FastAPI(title=settings.app_name, version="0.1.0")
+
+
+# ---------------------------------------------------------------------------
+# IP allowlist — private beta gate
+# ---------------------------------------------------------------------------
+# If ALLOWED_IPS env var is set, only those IPs / CIDRs can reach the API.
+# Empty list = fail-open (no restriction). /health and /api/webhooks/* are
+# always exempted so Railway healthchecks and provider webhooks (Stripe,
+# Clerk, etc.) keep working.
+# ---------------------------------------------------------------------------
+_EXEMPT_PREFIXES = ("/health", "/api/webhooks/")
+
+
+def _client_ip(request: Request) -> str | None:
+    # Railway puts a proxy in front; the original client IP is the leftmost
+    # entry of X-Forwarded-For. Fall back to the direct peer if missing.
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    real = request.headers.get("x-real-ip")
+    if real:
+        return real.strip()
+    return request.client.host if request.client else None
+
+
+class IPAllowlistMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if any(path == p or path.startswith(p) for p in _EXEMPT_PREFIXES):
+            return await call_next(request)
+
+        networks = settings.allowed_networks
+        if not networks:
+            # Gate disabled — let everything through.
+            return await call_next(request)
+
+        raw = _client_ip(request)
+        if not raw:
+            _log.warning("IP allowlist: no client IP found, denying")
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+        try:
+            ip_obj = ipaddress.ip_address(raw)
+        except ValueError:
+            _log.warning("IP allowlist: bad client IP %r, denying", raw)
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+
+        if not any(ip_obj in net for net in networks):
+            _log.info("IP allowlist: denying %s on %s", raw, path)
+            return JSONResponse({"detail": "Forbidden"}, status_code=403)
+
+        return await call_next(request)
+
+
+app.add_middleware(IPAllowlistMiddleware)
 
 
 # ---------------------------------------------------------------------------
