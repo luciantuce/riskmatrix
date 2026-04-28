@@ -1,21 +1,68 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class User(Base):
+    """
+    End-user account, mirror of the Clerk identity.
+    Created via Clerk webhook `user.created`; lazy-created from JWT claims
+    if a request arrives before the webhook is processed.
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clerk_user_id = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, nullable=False, index=True)
+    full_name = Column(String, nullable=True)
+    role = Column(String, default="user", nullable=False)  # 'user' | 'admin'
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    clients = relationship("Client", back_populates="user")
+    kit_submissions = relationship("KitSubmission", back_populates="user")
+    kit_results = relationship("KitResult", back_populates="user")
+
+
+class WebhookEvent(Base):
+    """
+    Idempotency log for inbound webhook events from Clerk and Stripe.
+    Each event is identified by (source, external_id); duplicates short-circuit.
+    """
+    __tablename__ = "webhook_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String, nullable=False)        # 'clerk' | 'stripe'
+    external_id = Column(String, nullable=False)   # 'evt_xxx'
+    event_type = Column(String, nullable=False)
+    payload = Column(JSON, nullable=False)
+    processed_at = Column(DateTime, nullable=True)
+    error = Column(Text, nullable=True)
+    received_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_webhook_events_source_external"),
+        Index("idx_webhook_events_source_received", "source", "received_at"),
+    )
 
 
 class Client(Base):
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     company_name = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True, index=True)
 
+    user = relationship("User", back_populates="clients")
     profile = relationship("ClientProfile", back_populates="client", uselist=False, cascade="all, delete-orphan")
     kit_submissions = relationship("KitSubmission", back_populates="client", cascade="all, delete-orphan")
     kit_results = relationship("KitResult", back_populates="client", cascade="all, delete-orphan")
@@ -170,6 +217,7 @@ class KitSubmission(Base):
     __tablename__ = "kit_submissions"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     kit_id = Column(Integer, ForeignKey("kits.id"), nullable=False)
     kit_version_id = Column(Integer, ForeignKey("kit_versions.id"), nullable=False)
@@ -179,6 +227,7 @@ class KitSubmission(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     submitted_at = Column(DateTime, nullable=True)
 
+    user = relationship("User", back_populates="kit_submissions")
     client = relationship("Client", back_populates="kit_submissions")
     kit_version = relationship("KitVersion", back_populates="submissions")
 
@@ -187,6 +236,7 @@ class KitResult(Base):
     __tablename__ = "kit_results"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     kit_id = Column(Integer, ForeignKey("kits.id"), nullable=False)
     kit_version_id = Column(Integer, ForeignKey("kit_versions.id"), nullable=False)
@@ -201,6 +251,7 @@ class KitResult(Base):
     result_json = Column(JSON, default=dict, nullable=False)
     calculated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    user = relationship("User", back_populates="kit_results")
     client = relationship("Client", back_populates="kit_results")
     kit_version = relationship("KitVersion", back_populates="results")
 

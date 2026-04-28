@@ -23,8 +23,15 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 ### Stare țintă (după 4 sprint-uri)
 
 - B2B SaaS pentru contabili/consultanți din România (extensibil EU-wide)
-- Pricing pe abonament: **Starter €29/mo** sau **Pro €69/mo** (-20% anual)
-- Trial 14 zile pe Pro fără card up-front
+- **Pricing per produs**: fiecare kit are abonament individual (€19/mo sau €190/an
+  cu „2 luni free"), iar bundle-ul (toate 5) are abonament la €69/mo sau €690/an.
+  User-ul poate combina: e.g. abonament la 2 kit-uri individuale, sau bundle, sau
+  3 kit-uri + un bundle (deși bundle-ul include automat tot).
+- **Cancel anytime**, fără commitment minim. Dacă contabilul vrea o lună, plătește
+  o lună și gata. Pierde acces la sfârșit de perioadă.
+- Fără trial — modelul cancel-anytime pe €19 e oricum „un fel de trial plătit"
+  cu friction minimă. Simplifică schema (fără trial_end, fără cron pentru
+  „trial_will_end", fără edge-case `unpaid` after trial).
 - Fiecare user își deține portofoliul de `Client`-uri și submissions
 - Auth via Clerk, payment via Stripe, email via Resend
 - Factura fiscală RO (SmartBill) și plan Agency multi-seat: **lăsate pentru v2**
@@ -125,34 +132,51 @@ CREATE UNIQUE INDEX idx_webhook_events_external
   ON webhook_events(source, external_id);
 
 -- Sprint 2
-plans (
+products (
   id BIGSERIAL PRIMARY KEY,
-  code VARCHAR UNIQUE NOT NULL,             -- 'starter' | 'pro'
+  code VARCHAR UNIQUE NOT NULL,             -- 'kit_internal_fiscal' | 'bundle_all' | etc.
   name VARCHAR NOT NULL,
+  type VARCHAR NOT NULL,                    -- 'kit' | 'bundle'
+  kit_id BIGINT REFERENCES kits(id),        -- non-NULL only when type='kit'
   stripe_price_id_monthly VARCHAR NOT NULL,
   stripe_price_id_yearly VARCHAR NOT NULL,
-  max_clients INT,                          -- NULL = unlimited
-  features_jsonb JSONB DEFAULT '{}',
-  active BOOLEAN NOT NULL DEFAULT TRUE
+  display_order INT NOT NULL DEFAULT 100,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT product_kit_consistency CHECK (
+    (type = 'kit' AND kit_id IS NOT NULL) OR
+    (type = 'bundle' AND kit_id IS NULL)
+  )
 );
+CREATE UNIQUE INDEX idx_products_kit_id ON products(kit_id) WHERE kit_id IS NOT NULL;
+
+bundle_includes (
+  bundle_product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  kit_id BIGINT NOT NULL REFERENCES kits(id) ON DELETE CASCADE,
+  PRIMARY KEY (bundle_product_id, kit_id)
+);
+-- Pentru launch, un singur bundle (toate 5). Schema permite multiple bundle-uri
+-- în viitor (e.g. „Bundle Fiscal" cu 2 kit-uri, „Bundle Avansat" cu 4 etc.).
 
 subscriptions (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id),
-  plan_id BIGINT NOT NULL REFERENCES plans(id),
+  product_id BIGINT NOT NULL REFERENCES products(id),
   stripe_subscription_id VARCHAR UNIQUE NOT NULL,
   stripe_customer_id VARCHAR NOT NULL,
-  status VARCHAR NOT NULL,                  -- 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid'
+  status VARCHAR NOT NULL,                  -- 'active' | 'past_due' | 'canceled' | 'unpaid'
+  billing_cycle VARCHAR NOT NULL,           -- 'monthly' | 'yearly'
   current_period_start TIMESTAMPTZ NOT NULL,
   current_period_end TIMESTAMPTZ NOT NULL,
   cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
-  trial_end TIMESTAMPTZ,
   canceled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX idx_subscriptions_status ON subscriptions(status);
+-- Un user poate avea N subscriptions simultan (un row per produs cumpărat).
+-- Dacă cumpără bundle peste kit-uri individuale, e responsabilitatea
+-- frontendului să-i sugereze să cancel-eze duplicatele.
 
 invoices (
   id BIGSERIAL PRIMARY KEY,
@@ -240,28 +264,45 @@ separate, ca să fie sigur).
 
 ### Pricing (launch)
 
-| Plan    | Lunar | Anual  | Clienți | Kit-uri    | Trial   |
-|---------|-------|--------|---------|------------|---------|
-| Starter | €29   | €290   | 10      | unlimited  | -       |
-| Pro     | €69   | €690   | unlimited | unlimited | 14 zile |
+| Produs               | Lunar | Anual (-2 luni) |
+|----------------------|-------|-----------------|
+| Kit individual (×5)  | €19   | €190            |
+| Bundle (toate 5)     | €69   | €690            |
 
-Anual = 10 luni plătite (-17% efectiv, comunicat ca „2 luni gratis").
+Logica:
+- Toate 5 kit-uri individuale = €95/mo. Bundle €69/mo = save €26/mo (-27%).
+  Bundle devine atractiv pentru cine folosește 4+ kit-uri.
+- Anual = 10× lunar (efectiv -17%, comunicat ca „2 luni gratis").
+- În Stripe avem **12 prices total**: 5 kit-uri × 2 (monthly/yearly) +
+  1 bundle × 2 = 12.
 
-### Flow trial → paid
+### Flow signup → cumpărare
 
-1. User signup → row în `users` via Clerk webhook
-2. Aterizează pe `/onboarding`, vede CTA „Start 14-day Pro trial"
-3. Click → Stripe Checkout cu `subscription_data.trial_period_days=14`
-   și `payment_method_collection='if_required'` (= fără card pentru trial)
-4. Stripe Checkout redirect → `/checkout/success`
-5. Webhook `checkout.session.completed` → INSERT subscription cu
-   `status='trialing'`, `trial_end=session.subscription.trial_end`
-6. User are acces Pro 14 zile, fără card on file
-7. Ziua 11: email „Trial ending in 3 days, add card now"
-8. Ziua 14: Stripe încearcă charge. Fără card → `status='unpaid'` → user
-   blocat de la mutații (poate citi)
-9. User dă click „Add card" → Stripe Customer Portal → adaugă card →
-   următoarea încercare reușește → `status='active'`
+1. User signup → Clerk → email verification → logged in
+2. Webhook Clerk `user.created` → INSERT `users`
+3. Aterizează pe `/dashboard`. Are 0 abonamente → vede empty state cu CTA
+   „Vezi catalog → /pricing"
+4. Pe `/pricing`: 6 carduri (5 kit-uri + bundle), toggle Monthly/Yearly,
+   buton „Subscribe" pe fiecare
+5. Click „Subscribe" pe kit X → POST `/api/checkout/session` cu
+   `{product_code: 'kit_internal_fiscal', billing_cycle: 'monthly'}` →
+   răspuns cu URL Stripe Checkout → redirect
+6. Stripe Checkout: card → success → redirect la `/checkout/success?session_id=...`
+7. Frontend polling `/api/me` până apare nouă subscription (max 30s)
+8. Webhook `checkout.session.completed` (în paralel) → INSERT subscription cu
+   `status='active'`, `current_period_end = now() + 1 month` (sau 1 year)
+9. User are acces la kit-ul cumpărat. Poate cumpăra mai multe (al doilea, etc.)
+   sau poate face upgrade la bundle prin Stripe Customer Portal.
+
+### Cancel flow
+
+1. User în `/account/billing` → click „Manage" pe un abonament → Stripe Customer
+   Portal
+2. Click „Cancel subscription" → Stripe marchează `cancel_at_period_end=true`
+3. Webhook `customer.subscription.updated` → UPDATE local `cancel_at_period_end=true`
+4. User păstrează acces până la `current_period_end`
+5. La final de perioadă, Stripe trimite `customer.subscription.deleted` →
+   UPDATE `status='canceled'` → user pierde acces la kit-ul respectiv
 
 ### Authorization gate
 
@@ -271,50 +312,62 @@ Anual = 10 luni plătite (-17% efectiv, comunicat ca „2 luni gratis").
 def current_user(authorization: str = Header(...)) -> User:
     """Verifică JWT-ul Clerk, returnează User din DB (lazy create dacă nu există)."""
 
-def current_active_user(
+
+def user_kit_access(db: Session, user_id: int, kit_id: int) -> Subscription | None:
+    """
+    Returnează subscription-ul activ care îi dă user-ului acces la kit-ul X.
+    Acces direct (subscription pe kit) sau prin bundle.
+    """
+    return db.query(Subscription).join(Product).filter(
+        Subscription.user_id == user_id,
+        Subscription.status == 'active',
+        # fie e subscription pe kit-ul direct...
+        ((Product.type == 'kit') & (Product.kit_id == kit_id)) |
+        # ...fie e bundle care include kit-ul
+        ((Product.type == 'bundle') & Product.id.in_(
+            db.query(BundleInclude.bundle_product_id)
+              .filter(BundleInclude.kit_id == kit_id)
+        )),
+    ).first()
+
+
+def require_kit_access(
+    kit_code: str,
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
-) -> tuple[User, Subscription]:
-    """Verifică JWT + subscription activ. Raise 402 dacă nu e abonat."""
-    sub = db.query(Subscription).filter(
-        Subscription.user_id == user.id,
-        Subscription.status.in_(['active', 'trialing']),
-    ).first()
+) -> tuple[User, Kit, Subscription]:
+    """Dependency pentru endpoint-uri care manipulează un kit specific."""
+    kit = db.query(Kit).filter(Kit.code == kit_code).first()
+    if not kit:
+        raise HTTPException(404, "Kit not found")
+    sub = user_kit_access(db, user.id, kit.id)
     if not sub:
         raise HTTPException(
             status_code=402,  # Payment Required
-            detail={"code": "subscription_required", "upgrade_url": "/pricing"},
-        )
-    return user, sub
-```
-
-- Endpoint-uri **read** (`GET /api/clients`, `GET /api/kits`) folosesc `current_user`
-- Endpoint-uri **mutație** (`POST`/`PUT`/`DELETE`/`GET .../pdf`) folosesc `current_active_user`
-
-### Quota enforcement
-
-```python
-def enforce_client_quota(user, sub, db):
-    if sub.plan.max_clients is None:
-        return  # unlimited
-    count = db.query(Client).filter(
-        Client.user_id == user.id,
-        Client.deleted_at.is_(None),
-    ).count()
-    if count >= sub.plan.max_clients:
-        raise HTTPException(
-            403,
             detail={
-                "code": "client_limit_reached",
-                "limit": sub.plan.max_clients,
-                "current": count,
-                "upgrade_url": "/account/billing",
+                "code": "kit_subscription_required",
+                "kit_code": kit_code,
+                "upgrade_url": f"/pricing?focus={kit_code}",
             },
         )
+    return user, kit, sub
 ```
 
-Apelat doar în `POST /api/clients`. La downgrade (Pro → Starter), clienții
-existenți rămân read-only — nu se șterge nimic. User-ul doar nu mai poate adăuga.
+Reguli:
+- Endpoint-uri **read** publice (`GET /api/kits` listing) folosesc doar `current_user`
+- Endpoint-uri pe **un kit specific** (`GET /api/clients/{id}/kits/{code}`,
+  `PUT`, `GET .../pdf`) folosesc `require_kit_access` — verifică user owns kit
+- `POST /api/clients` folosește doar `current_user` (orice user logged-in poate
+  crea Client; ce kit-uri folosește pentru el e gate-uit separat)
+
+### Fără quota
+
+În modelul vechi (Starter/Pro tiers) aveam `max_clients`. În modelul
+per-kit-subscription nu mai e nevoie: toate planurile sunt unlimited pe clienți.
+Diferența e ce KIT-URI poate folosi user-ul, nu CÂȚI clienți poate avea.
+
+Asta simplifică: nu mai e nevoie de `enforce_client_quota`, downgrade-handling,
+read-only fallback, etc.
 
 ---
 
@@ -326,11 +379,17 @@ existenți rămân read-only — nu se șterge nimic. User-ul doar nu mai poate 
 |----------------------------------------|--------------------------------------------------|
 | `checkout.session.completed`           | Creează subscription dacă nu există              |
 | `customer.subscription.created`        | Idempotent upsert                                |
-| `customer.subscription.updated`        | Update status, periods, plan_id, cancel flag     |
-| `customer.subscription.deleted`        | Marchează canceled                               |
+| `customer.subscription.updated`        | Update status, periods, cancel_at_period_end     |
+| `customer.subscription.deleted`        | Marchează `status='canceled'`                    |
 | `invoice.payment_succeeded`            | Insert/update invoice                            |
 | `invoice.payment_failed`               | `status='past_due'`, trimite email               |
-| `customer.subscription.trial_will_end` | Email „trial ending in 3 days" (3 zile înainte)  |
+
+(Eliminat `customer.subscription.trial_will_end` — nu mai avem trial.)
+
+**Identificare produs din webhook**: la `checkout.session.completed`, payload-ul
+conține `subscription.items.data[0].price.id`. Folosim `stripe_price_id` ca să
+găsim produsul în DB (matchuim împotriva `products.stripe_price_id_monthly` SAU
+`stripe_price_id_yearly`). Setăm `billing_cycle` în consecință.
 
 ### Idempotency
 
@@ -355,17 +414,20 @@ de 3 zile. Eroarea logată în `webhook_events.error` pentru inspectare manuală
 ### Templates (React Email, în `frontend/emails/`)
 
 - `welcome.tsx` — după `user.created` Clerk
-- `trial-ending-soon.tsx` — 3 zile înainte de `trial_end`
-- `trial-converted.tsx` — după primul charge reușit
+- `subscription-started.tsx` — la primul `checkout.session.completed`
+  (cu numele kit-ului/bundle-ului cumpărat)
 - `payment-failed.tsx` — imediat + ziua 3 + ziua 7
 - `subscription-canceled.tsx` — când user-ul cancel-ează (acces până la period_end)
+- `subscription-ended.tsx` — când perioada se termină și user-ul pierde acces
 
 ### Triggers
 
-- **Webhook-driven** (instant): `invoice.payment_failed` → email imediat
-- **Cron-driven** (Railway scheduled service, o dată pe oră):
-  găsește subscription-uri cu `trial_end` în 3 zile ±1h, trimite
-  `trial_ending_soon` dacă nu e deja trimis (dedup în `email_sends`)
+- **Webhook-driven** (instant):
+  - `checkout.session.completed` → email „subscription started"
+  - `invoice.payment_failed` → email „payment failed"
+  - `customer.subscription.deleted` → email „access ended"
+- **Cron-driven**: niciunul în launch (fără trial = fără email-uri scheduled).
+  Adaugi „renewal coming up" email în v2 dacă conversia anuală cere
 
 ---
 
@@ -385,11 +447,20 @@ să fie procesat. Soluție: lazy-create User în `current_user` dacă nu există
 DB. Log warning pentru a monitoriza frecvența — dacă crește, înseamnă că
 webhook-urile au lag mare.
 
-### 3. Trial fără card → expirare
+### 3. User cu subscriptions duplicate (kit + bundle)
 
-Stripe va seta `status='unpaid'` după prima încercare eșuată de charge la
-sfârșitul trialului. UI trebuie să afișeze clar acest status cu CTA pentru
-adăugare card. Email-urile cu 3 zile înainte sunt critice.
+Cazul: user-ul are abonament la 3 kit-uri individuale (€57/mo total), apoi
+cumpără și bundle-ul (€69/mo) crezând că face upgrade. Acum plătește €126/mo
+pentru ce putea avea cu €69. Nu e bug funcțional (accesul lui la kit-urile
+respective rămâne valid), dar e overcharge.
+
+Mitigare în launch:
+- Pe `/pricing`, dacă user-ul are deja subscription pe un kit individual,
+  butonul „Subscribe to bundle" arată un warning: „Ai deja kit X — cancel-ează
+  înainte ca să eviți plata dublă."
+- Pe `/account/billing`, sortez subscription-urile și marchez vizibil
+  duplicate-le (kit individual + bundle care îl include).
+- v2: buton „Upgrade to bundle" care face automat cancel + create cu proration.
 
 ### 4. Migrarea schemei pe DB cu date
 
@@ -413,15 +484,29 @@ la integrarea SmartBill din v2.
 
 ### 7. Cancellation grace period
 
-Când user-ul cancel-ează: `cancel_at_period_end=true` până la
+Când user-ul cancel-ează un abonament: `cancel_at_period_end=true` până la
 `current_period_end`. Are acces până atunci. Webhook
 `customer.subscription.deleted` se declanșează când perioada se termină →
-marchezi canceled, blochezi.
+marchezi `status='canceled'`, blochezi accesul la kit-ul respectiv.
 
-### 8. Downgrade cu over-limit
+Dacă user-ul cancel-ează bundle-ul dar are și kit-uri individuale active,
+păstrează acces doar la cele individuale. Dependența între produse e gestionată
+automat de helper-ul `user_kit_access` care verifică active subs.
 
-Pro 50 clienți → downgrade la Starter (limit 10): păstrezi toți clienții
-read-only, blochezi crearea de clienți noi. NU ștergi date.
+### 8. Failed payment recovery
+
+Stripe încearcă automat să recupereze plata pe parcursul a 3 săptămâni
+(retry policy configurabil în Stripe Dashboard). Pe parcurs:
+- Status devine `past_due` → user-ul pierde acces imediat (gate-ul e strict)
+- 3 email-uri de la noi (zilele 0, 3, 7)
+- Dacă user-ul update-ează card-ul → următoarea încercare reușește → `active`
+- După ~3 săpt fără succes → Stripe trimite `customer.subscription.deleted`
+  → `status='canceled'`, sfârșit
+
+Politica „pierde acces imediat la past_due" e mai strictă decât industria;
+multe SaaS dau grace period 3-7 zile pe `past_due` ca să nu enerveze user-ii.
+Pentru launch e ok strict (mai puțin cod), îmbunătățești în v2 dacă apar
+plângeri.
 
 ---
 
@@ -513,8 +598,9 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 
 #### Sprint 2
 - `POST /api/webhooks/stripe` — receiver webhook Stripe
-- `GET /api/me` — current user + active subscription + plan limits
-- `POST /api/checkout/session` — creează Stripe Checkout session
+- `GET /api/me` — current user + lista produselor cumpărate (cu status, period_end)
+- `GET /api/products` — catalog public: 5 kit-uri + bundle, cu prețuri
+- `POST /api/checkout/session` — creează Stripe Checkout session pentru un product_code + billing_cycle
 - `POST /api/billing/portal` — creează Stripe Customer Portal session
 
 ### Modificări pe endpoint-urile existente
@@ -541,7 +627,7 @@ backend/app/
   email/
     __init__.py
     client.py             # NOU (Sprint 3) — Resend wrapper
-  models.py               # MODIFIED — User, Plan, Subscription, Invoice, WebhookEvent
+  models.py               # MODIFIED — User, Product, BundleInclude, Subscription, Invoice, WebhookEvent
   config.py               # MODIFIED — Clerk + Stripe + Resend env vars
   schemas.py              # MODIFIED — UserResponse, SubscriptionResponse, etc.
 main.py                   # MODIFIED — register webhook routers, dependencies pe rutele existente

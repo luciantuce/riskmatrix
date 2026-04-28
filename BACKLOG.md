@@ -110,85 +110,119 @@ QA de mai jos trec.
 
 ---
 
-## Sprint 2 — Subscriptions (săpt. 2)
+## Sprint 2 — Subscriptions per produs (săpt. 2)
 
-**Goal:** User-ii pot alege un plan, pornesc trial, sunt charge-uiți, iar accesul
-e gate-uit prin subscription activ.
+**Goal:** User-ii pot vedea catalogul (5 kit-uri + bundle), abona la oricare,
+iar accesul la kit-uri e gate-uit prin subscription activ pe kit-ul respectiv
+sau pe bundle-ul care îl include.
 
-**Definition of Done:** Un user signup, alege Pro, completează Stripe Checkout
-(fără card pentru trial), folosește app-ul. După trial, cu card adăugat, e
-charge-uit €69 cu success.
+**Definition of Done:** Un user logged-in deschide `/pricing`, alege un kit la
+€19/mo, completează Stripe Checkout cu card real (test mode), are imediat acces
+la kit-ul respectiv și NU are acces la celelalte 4. Bundle-ul deblochează
+automat toate 5.
 
-### Setup
+### Setup Stripe
 - [ ] Cont Stripe (test mode), activează Stripe Tax
-- [ ] Stripe Products: „Kit Platform Starter", „Kit Platform Pro"
-- [ ] Stripe Prices: 4 (Starter monthly €29, Starter yearly €290, Pro
-      monthly €69, Pro yearly €690)
+- [ ] **Products** (6 total): unul per kit (5) + unul „Bundle (toate 5)"
+- [ ] **Prices** (12 total): per fiecare product, monthly + yearly
+  - 5 kit-uri × monthly €19 + yearly €190 = 10
+  - 1 bundle × monthly €69 + yearly €690 = 2
 - [ ] Setează business address (RO) și EU VAT settings
-- [ ] Tax behavior: exclusive (recomandat — pricing afișat fără VAT)
-- [ ] Salvează Price IDs pentru env vars
+- [ ] Tax behavior: **exclusive** (recomandat — pricing afișat fără VAT,
+      adăugat la checkout după țară/CIF)
+- [ ] Notează cele 12 Price IDs pentru seed-ul DB
 - [ ] Branch: `feat/subscriptions`
 
 ### Schema (Day 1)
 - [ ] Migration `0004_add_subscription_tables.py`:
-  - `CREATE TABLE plans` cu seed inițial pentru starter și pro
-        (cu stripe_price_ids din env)
-  - `CREATE TABLE subscriptions`
+  - `CREATE TABLE products` (cu CHECK constraint pe `(type, kit_id)`)
+  - `CREATE TABLE bundle_includes`
+  - `CREATE TABLE subscriptions` (cu `product_id`, `billing_cycle`)
   - `CREATE TABLE invoices`
   - Index-uri conform `ARCHITECTURE.md`
+  - **Seed inițial** în migrație:
+    - 5 rânduri în `products` (type='kit', kit_id=...) — Price IDs din env
+    - 1 rând în `products` (type='bundle')
+    - 5 rânduri în `bundle_includes` legând bundle-ul de cele 5 kit-uri
 
 ### Backend (Day 2–4)
 - [ ] `pip install stripe` → update requirements
-- [ ] `backend/app/stripe_client.py` wrapper (key from env, helper functions)
+- [ ] `backend/app/stripe_client.py` — wrapper (key din env, helpers)
 - [ ] `backend/app/webhooks/stripe.py`:
   - `POST /api/webhooks/stripe`
   - Verifică webhook signature
   - Idempotent dedup via `webhook_events` (key: `("stripe", event.id)`)
-  - Handlers pentru cele 7 events din `ARCHITECTURE.md`
-- [ ] `backend/app/auth.py`: adaugă `current_active_user`
-- [ ] Înlocuiește `current_user` cu `current_active_user` pe endpoint-urile
-      de mutație (`POST`/`PUT`/`DELETE`/`GET .../pdf`)
-- [ ] `enforce_client_quota(user, sub, db)` helper
-- [ ] Apel `enforce_client_quota` în `POST /api/clients`
-- [ ] Endpoint nou `POST /api/checkout/session`:
-  - Input: `{plan_code, billing_cycle: 'monthly'|'yearly'}`
-  - Creează Stripe Checkout cu `subscription_data.trial_period_days=14`
-        și `payment_method_collection='if_required'`
+  - Handlers pentru cele 6 events din `ARCHITECTURE.md`
+        (NO trial_will_end — fără trial)
+  - **Lookup product**: din `subscription.items.data[0].price.id` → match
+        împotriva `products.stripe_price_id_monthly` SAU `_yearly`,
+        setează `billing_cycle` corespunzător
+- [ ] `backend/app/auth.py`: adaugă helper-ul `user_kit_access(db, user_id, kit_id)`
+      și dependency `require_kit_access(kit_code: str)`
+- [ ] Înlocuiește `current_user` cu `require_kit_access` pe endpoint-urile
+      legate de un kit specific:
+  - `GET /api/clients/{id}/kits/{code}`
+  - `PUT /api/clients/{id}/kits/{code}`
+  - `GET /api/clients/{id}/kits/{code}/pdf`
+  - `GET /api/kits/{code}` — definiția kit-ului
+- [ ] **Endpoint nou** `GET /api/products`:
+  - Listează cele 6 produse cu prețuri (din DB) + dacă user-ul deja are
+        subscription activ pe fiecare (pentru badge „Already subscribed" în UI)
+- [ ] **Endpoint nou** `POST /api/checkout/session`:
+  - Input: `{product_code, billing_cycle: 'monthly'|'yearly'}`
+  - Lookup product → ia stripe_price_id corespunzător
+  - Creează Stripe Checkout cu `mode='subscription'`, `line_items=[{price, quantity:1}]`
+  - Setează `client_reference_id = user.id` (pentru idempotency în webhook)
+  - Pre-fill `customer_email = user.email`
   - Return URL Checkout
-- [ ] Endpoint nou `GET /api/me`:
-  - Return user + active subscription + plan info + quota usage
+- [ ] **Endpoint nou** `GET /api/me`:
+  - Return user + lista subscriptions active (cu product info, period_end,
+        cancel_at_period_end)
+- [ ] **Endpoint nou** `POST /api/billing/portal` (mutat din Sprint 3 ca să fie
+      disponibil de la primul deploy):
+  - Stripe Customer Portal session pentru user-ul curent
 
 ### Frontend (Day 4–6)
-- [ ] `app/pricing/page.tsx` (public):
-  - Comparare side-by-side Starter vs Pro
-  - Toggle Monthly/Yearly cu calculator de „save 17%"
-  - CTA „Start free trial" → call `/api/checkout/session` → redirect Stripe
-  - CTA pentru Starter: „Subscribe" (fără trial)
+- [ ] `app/pricing/page.tsx` (public, accesibil fără login dar prompt-ează la subscribe):
+  - Header: titlu, subtitlu „Pay only for the kits you need"
+  - Toggle Monthly/Yearly cu calculator „2 months free yearly"
+  - **6 carduri**: 5 kit-uri (€19/mo each) + 1 bundle (€69/mo, evidențiat „BEST VALUE — save 27%")
+  - Per card: nume, descriere scurtă, preț, buton „Subscribe" / „Already subscribed"
+  - Click „Subscribe" pe kit/bundle → call `/api/checkout/session` → redirect Stripe
 - [ ] `app/checkout/success/page.tsx`:
-  - Polling `/api/me` la 2s interval până apare subscription (max 30s)
-  - Apoi redirect la `/dashboard` cu toast „Welcome to Pro!"
-- [ ] `app/checkout/canceled/page.tsx`:
-  - Mesaj încurajator + link înapoi la pricing
+  - Polling `/api/me` la 2s interval până apare subscription nouă (max 30s)
+  - Toast „Welcome! You now have access to {product.name}"
+  - Redirect la dashboard sau direct la `/clients/X/kits/{code}` dacă e un singur kit cumpărat
+- [ ] `app/checkout/canceled/page.tsx` — mesaj + link la pricing
 - [ ] Component `<SubscriptionBanner>` în layout dashboard:
-  - Afișare condiționată pentru `status='past_due'` sau `trial_end - now < 3d`
-  - CTA pentru add card / upgrade
-- [ ] Block UI pentru `status NOT IN ('active', 'trialing')`:
-  - Endpoint-urile întorc 402 → frontend afișează full-page „Subscription required"
+  - Dacă vreun subscription are `status='past_due'` → banner roșu „Payment failed, update card"
+  - Dacă vreun subscription are `cancel_at_period_end=true` → banner galben „Access ends on {date}"
+- [ ] Pe pagina kit-ului (când user n-are acces): full-page card „Subscription required"
+      cu CTA spre `/pricing?focus={kit_code}`
+- [ ] `app/account/billing/page.tsx`:
+  - Listă subscriptions active (card per produs cu status, period_end, „Manage")
+  - „Manage" → `/api/billing/portal` → redirect Stripe Portal
+  - **Avertizare** dacă user are subscription la kit + bundle care îl include:
+        „You're paying for both X and Bundle. Consider canceling X."
 
 ### QA (Day 6–7)
-- [ ] **Test 1**: signup → onboarding → pricing → Stripe Checkout cu
-      4242 4242 4242 4242 → return → subscription `trialing` ✓
-- [ ] **Test 2**: Stripe test card 4000 0000 0000 0341 (decline pe charge)
-      → după trial → status `past_due` ✓
-- [ ] **Test 3**: hit `POST /api/clients` fără subscription → 402 ✓
-- [ ] **Test 4**: webhook idempotency — replay același event de 3 ori,
-      verifică zero duplicate inserts ✓
-- [ ] **Test 5**: starter plan cu 10 clienți → 11th create → 403 cu mesaj
-      de upgrade ✓
+- [ ] **Test 1**: signup → onboarding → /pricing → click Subscribe pe Kit 1
+      → Stripe Checkout cu 4242 4242 4242 4242 → return → subscription `active`
+- [ ] **Test 2**: hit `GET /api/clients/1/kits/{code1}` cu acces → 200 OK
+- [ ] **Test 3**: hit `GET /api/clients/1/kits/{code2}` fără acces (n-am cumpărat acel kit) → 402
+- [ ] **Test 4**: cancel subscription din Stripe Portal → status `cancel_at_period_end=true`
+      → user are acces până la `period_end`
+- [ ] **Test 5**: simulez sfârșit de perioadă cu `stripe trigger customer.subscription.deleted`
+      → status `canceled` → user pierde acces (gate-ul răspunde 402)
+- [ ] **Test 6**: webhook idempotency — replay același event de 3 ori,
+      verifică zero duplicate inserts
+- [ ] **Test 7**: cumpăr bundle → verific că am acces la TOATE 5 kit-urile
+- [ ] **Test 8**: am bundle ACTIV + cumpăr și kit individual → API răspunde
+      cu warning în UI (nu blocant, doar avertizare)
 - [ ] Verifică Stripe Tax: VAT 19% pentru RO B2C, reverse charge pentru EU B2B
       cu VAT ID valid
 - [ ] Deploy pe Railway, configurează webhook endpoint în Stripe dashboard
-      pointing la production
+      pointing la production (`/api/webhooks/stripe`)
 - [ ] Smoke test în production cu card real (refund după)
 - [ ] Merge `feat/subscriptions`
 
@@ -196,11 +230,12 @@ charge-uit €69 cu success.
 
 ## Sprint 3 — Self-service billing + emails (săpt. 3)
 
-**Goal:** User-ii își gestionează abonamentul fără să contacteze suport.
+**Goal:** User-ii își gestionează abonamentele fără să contacteze suport.
 Evenimentele critice declanșează email-uri.
 
-**Definition of Done:** User cancel-ează din app, schimbă plan, update card,
-vede facturi. Email-urile trial-ending și payment-failed se trimit automat.
+**Definition of Done:** User cancel-ează un subscription din Stripe Portal,
+update-ează card, vede istoric facturi. Email-urile de subscription-started,
+payment-failed și subscription-ended se trimit automat.
 
 ### Setup
 - [ ] Cont Resend (free tier), verifică sending domain
@@ -215,26 +250,23 @@ vede facturi. Email-urile trial-ending și payment-failed se trimit automat.
 - [ ] `pip install resend` → update requirements
 - [ ] `backend/app/email/client.py` — Resend wrapper cu rendering HTML
 - [ ] `backend/app/email/templates.py` — mapping template_code → React Email render
-- [ ] Endpoint `POST /api/billing/portal`:
-  - Creează Stripe Customer Portal session pentru user-ul curent
-  - Return portal URL
 - [ ] Email triggers în `webhooks/stripe.py`:
-  - `invoice.payment_failed` → email immediate
-  - `customer.subscription.trial_will_end` → email
-  - `customer.subscription.deleted` → email „canceled"
+  - `checkout.session.completed` → `subscription-started` email
+  - `invoice.payment_failed` → `payment-failed` email immediate
+  - `customer.subscription.deleted` → `subscription-ended` email
 - [ ] Email trigger în `webhooks/clerk.py`:
-  - `user.created` → welcome email
-- [ ] Cron job (Railway scheduled service) — `cron/check_trials.py`:
-  - Rulează la fiecare oră
-  - Găsește subscription-uri cu `trial_end` în 3 zile ±1h
-  - Trimite `trial_ending_soon` dacă nu e deja trimis (dedup în `email_sends`)
+  - `user.created` → `welcome` email
+- [ ] Endpoint `POST /api/billing/portal` — gata din Sprint 2, doar verifici
+- [ ] Cron pentru retry email-uri payment_failed (day 3, day 7) — opțional v1.5
 
 ### Email templates (Day 2–4) — în `frontend/emails/`
-- [ ] `welcome.tsx` — bun-venit, link la onboarding
-- [ ] `trial-ending-soon.tsx` — 3 zile rămase, CTA add card
-- [ ] `trial-converted.tsx` — first charge succeeded, thank you
+- [ ] `welcome.tsx` — bun-venit post-signup, link la /pricing
+- [ ] `subscription-started.tsx` — confirmare la primul `checkout.session.completed`,
+      include numele produsului cumpărat și data renew-ului
 - [ ] `payment-failed.tsx` — versiune immediate / day 3 / day 7 (param)
 - [ ] `subscription-canceled.tsx` — confirmare cancel, acces până la period_end
+- [ ] `subscription-ended.tsx` — la `customer.subscription.deleted`, „access ended,
+      resubscribe anytime"
 - [ ] Toate cu logo, branding consistent, plain text fallback
 
 ### Frontend (Day 3–5)
@@ -247,15 +279,14 @@ vede facturi. Email-urile trial-ending și payment-failed se trimit automat.
 - [ ] Polish global: loading states, error toasts (sonner), empty states
 
 ### QA (Day 5–7)
-- [ ] **Test 1**: cancel din portal → status `cancel_at_period_end=true` →
-      user păstrează acces până la `period_end` ✓
-- [ ] **Test 2**: change plan din portal → proration calculat corect ✓
+- [ ] **Test 1**: cancel din portal → email `subscription-canceled` →
+      la sfârșit de perioadă email `subscription-ended`
+- [ ] **Test 2**: payment failed simulation → email `payment-failed` immediate
 - [ ] **Test 3**: fiecare email template renderează corect în Gmail, Outlook,
       Apple Mail (folosește mail-tester.com)
-- [ ] **Test 4**: trial-ending-soon se trimite EXACT o dată per subscription
-      (chiar dacă cron rulează de 24x în 24h)
-- [ ] **Test 5**: deliverability — email-urile NU ajung în spam (verifică
+- [ ] **Test 4**: deliverability — email-urile NU ajung în spam (verifică
       cu mail-tester score > 9/10)
+- [ ] **Test 5**: idempotency — webhook events repetate nu generează email-uri duplicate
 - [ ] Merge `feat/billing-portal`
 
 ---
