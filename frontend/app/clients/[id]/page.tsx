@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
+import { useAuth } from "@clerk/nextjs"
 
 import { apiGet, apiSend } from "@/lib/api"
 
@@ -37,6 +38,7 @@ type Client = {
 export default function ClientDetailPage() {
   const params = useParams()
   const clientId = params.id as string
+  const { getToken } = useAuth()
 
   const [client, setClient] = useState<Client | null>(null)
   const [profileDefinition, setProfileDefinition] = useState<ProfileDefinitionSection[]>([])
@@ -46,10 +48,11 @@ export default function ClientDetailPage() {
 
   const load = async () => {
     try {
+      const token = await getToken()
       const [clientRes, profileRes, kitsRes] = await Promise.all([
-        apiGet<Client>(`/api/clients/${clientId}`),
-        apiGet<{ definition: ProfileDefinitionSection[]; answers: Record<string, unknown> }>(`/api/clients/${clientId}/profile`),
-        apiGet<Kit[]>("/api/kits"),
+        apiGet<Client>(`/api/clients/${clientId}`, token ?? undefined),
+        apiGet<{ definition: ProfileDefinitionSection[]; answers: Record<string, unknown> }>(`/api/clients/${clientId}/profile`, token ?? undefined),
+        apiGet<Kit[]>("/api/kits", token ?? undefined),
       ])
       setClient(clientRes)
       setProfileDefinition(profileRes.definition)
@@ -70,7 +73,8 @@ export default function ClientDetailPage() {
   )
 
   const saveProfile = async () => {
-    await apiSend(`/api/clients/${clientId}/profile`, "PUT", { answers: profileAnswers })
+    const token = await getToken()
+    await apiSend(`/api/clients/${clientId}/profile`, "PUT", { answers: profileAnswers }, token ?? undefined)
   }
 
   return (

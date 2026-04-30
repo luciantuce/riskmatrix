@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useAuth } from "@clerk/nextjs"
 
 import { apiGet, apiSend } from "@/lib/api"
 
@@ -44,6 +45,7 @@ export default function KitDetailPage() {
   const params = useParams()
   const clientId = params.id as string
   const kitCode = params.kitCode as string
+  const { getToken } = useAuth()
 
   const [data, setData] = useState<ViewResponse | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
@@ -81,7 +83,8 @@ export default function KitDetailPage() {
 
   const load = async () => {
     try {
-      const res = await apiGet<ViewResponse>(`/api/clients/${clientId}/kits/${kitCode}`)
+      const token = await getToken()
+      const res = await apiGet<ViewResponse>(`/api/clients/${clientId}/kits/${kitCode}`, token ?? undefined)
       setData(res)
       setAnswers(res.submission || {})
     } catch (e) {
@@ -95,7 +98,8 @@ export default function KitDetailPage() {
 
   const save = async () => {
     try {
-      await apiSend(`/api/clients/${clientId}/kits/${kitCode}`, "PUT", { answers })
+      const token = await getToken()
+      await apiSend(`/api/clients/${clientId}/kits/${kitCode}`, "PUT", { answers }, token ?? undefined)
       await load()
     } catch (e) {
       setError(String(e))
