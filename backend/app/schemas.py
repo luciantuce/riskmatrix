@@ -113,3 +113,18 @@ class ResultResponse(BaseModel):
     tariff_adjustment_pct: float = 0.0
     active_risks_json: list[dict[str, Any]] = []
     result_json: dict[str, Any]
+
+
+class AdminUserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str | None
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminUpdateUserRolePayload(BaseModel):
+    role: str

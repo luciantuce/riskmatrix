@@ -3,7 +3,7 @@
 Document de decizii arhitecturale pentru tranziția platformei din „internal
 admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 
-> Ultima actualizare: 2026-04-28
+> Ultima actualizare: 2026-04-30
 > Status: planificare, înainte de Sprint 1
 
 ---
@@ -15,7 +15,7 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 - FastAPI backend + Next.js 14 frontend pe Railway, regiune EU West Amsterdam
 - Postgres pe Railway (același cluster regional, Private Networking cu backend)
 - 5 kit-uri de compliance seedate în DB cu prețuri one-time (€45–55 fiecare)
-- `/admin/*` protejat cu HTTP Basic Auth (placeholder credentials)
+- `/admin/*` protejat prin RBAC (`admin` / `super_admin`) pe JWT Clerk
 - Fără concept de end-user; entitățile `Client` sunt gestionate direct prin UI
 - Fără integrare de plată
 - Fără email transactional
@@ -112,7 +112,7 @@ users (
   clerk_user_id VARCHAR UNIQUE NOT NULL,
   email VARCHAR NOT NULL,
   full_name VARCHAR,
-  role VARCHAR NOT NULL DEFAULT 'user',     -- 'user' | 'admin'
+  role VARCHAR NOT NULL DEFAULT 'client',   -- 'client' | 'admin' | 'super_admin'
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   deleted_at TIMESTAMPTZ
@@ -247,6 +247,28 @@ separate, ca să fie sigur).
 3. Payload `sub` = `clerk_user_id`. Lookup în tabela `users`.
 4. Dacă lipsește (lag webhook), creare lazy din claims-urile JWT. Log warning.
 5. Inject `User` în request, continuă.
+
+### RBAC (implementat 2026-04-30)
+
+- `client`: acces la flow-ul propriu (clients/profile/kits pentru user-ul lui)
+- `admin`: acces la zona `Super Contabil` (editare kituri)
+- `super_admin`: tot ce are `admin` + poate acorda/revoca roluri
+
+Enforcement:
+
+- Frontend:
+  - link-ul `Super Contabil` este vizibil doar pentru `admin` și `super_admin`
+  - paginile `/admin/*` verifică rolul și fac redirect pentru userii non-admin
+- Backend:
+  - endpoint-urile `/api/admin/kits/*` cer rol `admin` sau `super_admin`
+  - endpoint-ul `PUT /api/admin/users/{user_id}/role` cere `super_admin`
+  - safeguard: ultimul `super_admin` nu poate fi demovat
+
+Endpoint-uri admin relevante:
+
+- `GET /api/me` — returnează rolul userului curent
+- `GET /api/admin/users` — listă useri pentru ecranul de management
+- `PUT /api/admin/users/{user_id}/role` — schimbare rol (`super_admin` only)
 
 ### Sync utilizatori prin Clerk webhook
 

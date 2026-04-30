@@ -60,6 +60,11 @@ export default function AdminPage() {
       <div className="card">
         <h1>Super Contabil</h1>
         <p className="muted">Editezi kituri, intrebari, reguli si template-uri PDF dintr-un singur loc.</p>
+        <div className="row" style={{ marginTop: 12 }}>
+          <Link className="button secondary" href="/admin/users">
+            Management utilizatori
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-2">

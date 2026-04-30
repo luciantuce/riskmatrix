@@ -34,6 +34,8 @@ from app.pdf import build_kit_pdf
 from app.risk_engine import calculate_result_from_risks
 from app.rules import calculate_result
 from app.schemas import (
+    AdminUpdateUserRolePayload,
+    AdminUserResponse,
     AdminKitResponse,
     AdminKitUpdatePayload,
     AnswersPayload,
@@ -672,11 +674,11 @@ def update_admin_kit(
 @app.put("/api/admin/users/{user_id}/role")
 def update_user_role(
     user_id: int,
-    payload: dict[str, str],
+    payload: AdminUpdateUserRolePayload,
     db: Session = Depends(get_db),
     actor: User = Depends(require_super_admin_user),
 ):
-    requested_role = normalize_role(payload.get("role"))
+    requested_role = normalize_role(payload.role)
     if requested_role not in {"client", "admin", "super_admin"}:
         raise HTTPException(status_code=400, detail="Invalid role")
 
@@ -718,3 +720,26 @@ def update_user_role(
         "old_role": current_role,
         "new_role": requested_role,
     }
+
+
+@app.get("/api/admin/users", response_model=list[AdminUserResponse])
+def list_admin_users(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_user),
+):
+    users = (
+        db.query(User)
+        .filter(User.deleted_at.is_(None))
+        .order_by(User.created_at.asc())
+        .all()
+    )
+    return [
+        AdminUserResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role=normalize_role(user.role),
+            created_at=user.created_at,
+        )
+        for user in users
+    ]
