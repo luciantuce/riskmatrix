@@ -1,17 +1,10 @@
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-// IP allowlist middleware — private beta gate.
-//
-// Reads ALLOWED_IPS env var (comma-separated). Supports:
-//   - IPv4 single address           (e.g. 82.79.162.153)
-//   - IPv4 CIDR                     (e.g. 212.45.0.0/24)
-//   - IPv6 single address           (e.g. 2a02:2f04:b0f:4500::1)
-//   - IPv6 CIDR                     (e.g. 2a02:2f04:b0f:4500::/64)
-//
-// Empty / unset = fail-open (no restriction).
-// /api/health is exempted so Railway's healthcheck always passes.
-
+// ---------------------------------------------------------------------------
+// IP allowlist — private beta gate (same logic as backend)
+// ---------------------------------------------------------------------------
 type V4Range = { network: number; mask: number }
 type V6Range = { network: bigint; mask: bigint }
 
@@ -28,8 +21,8 @@ function ipv4ToInt(ip: string): number | null {
 }
 
 function ipv6ToBigInt(ip: string): bigint | null {
-  ip = ip.split("%")[0] // strip zone id if present
-  if (ip.includes(".")) return null // IPv4-mapped IPv6 — out of scope
+  ip = ip.split("%")[0]
+  if (ip.includes(".")) return null
   let parts: string[]
   if (ip.includes("::")) {
     const [head, tail] = ip.split("::")
@@ -63,7 +56,7 @@ const v6Ranges: V6Range[] = []
 
 const allowedRaw = (process.env.ALLOWED_IPS || "")
   .split(",")
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean)
 
 for (const entry of allowedRaw) {
@@ -71,28 +64,16 @@ for (const entry of allowedRaw) {
   const isV6 = addr.includes(":")
   if (isV6) {
     const network = ipv6ToBigInt(addr)
-    if (network === null) {
-      console.warn(`[middleware] ignoring invalid IPv6 entry: ${entry}`)
-      continue
-    }
+    if (network === null) continue
     const bits = bitsStr === null ? 128 : Number(bitsStr)
-    if (!Number.isInteger(bits) || bits < 0 || bits > 128) {
-      console.warn(`[middleware] ignoring invalid IPv6 CIDR bits: ${entry}`)
-      continue
-    }
+    if (!Number.isInteger(bits) || bits < 0 || bits > 128) continue
     const mask = v6Mask(bits)
     v6Ranges.push({ network: network & mask, mask })
   } else {
     const network = ipv4ToInt(addr)
-    if (network === null) {
-      console.warn(`[middleware] ignoring invalid IPv4 entry: ${entry}`)
-      continue
-    }
+    if (network === null) continue
     const bits = bitsStr === null ? 32 : Number(bitsStr)
-    if (!Number.isInteger(bits) || bits < 0 || bits > 32) {
-      console.warn(`[middleware] ignoring invalid IPv4 CIDR bits: ${entry}`)
-      continue
-    }
+    if (!Number.isInteger(bits) || bits < 0 || bits > 32) continue
     const mask = bits === 0 ? 0 : ((~0 << (32 - bits)) >>> 0)
     v4Ranges.push({ network: network & mask, mask })
   }
@@ -124,19 +105,39 @@ function clientIp(request: NextRequest): string | null {
   return null
 }
 
-export function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname === "/api/health") {
-    return NextResponse.next()
-  }
-  if (allowedRaw.length === 0) {
-    return NextResponse.next()
-  }
+function checkIpAllowlist(request: NextRequest): NextResponse | null {
+  if (allowedRaw.length === 0) return null // gate disabled
   const ip = clientIp(request)
   if (!ip || !isAllowed(ip)) {
     return new NextResponse("Forbidden", { status: 403 })
   }
-  return NextResponse.next()
+  return null
 }
+
+// ---------------------------------------------------------------------------
+// Route matchers
+// ---------------------------------------------------------------------------
+const isPublicRoute = createRouteMatcher([
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/api/health",
+])
+
+// ---------------------------------------------------------------------------
+// Middleware — IP gate first, then Clerk auth
+// ---------------------------------------------------------------------------
+export default clerkMiddleware(async (auth, request) => {
+  // IP allowlist check (exempts sign-in/sign-up/health implicitly since
+  // those are usually accessed from the user's own IP which is in the list,
+  // but the gate runs on all routes uniformly)
+  const ipBlock = checkIpAllowlist(request)
+  if (ipBlock) return ipBlock
+
+  // Protect all routes except sign-in, sign-up, health
+  if (!isPublicRoute(request)) {
+    await auth.protect()
+  }
+})
 
 export const config = {
   matcher: [

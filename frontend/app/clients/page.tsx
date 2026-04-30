@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useAuth } from "@clerk/nextjs"
 
 import { apiGet, apiSend } from "@/lib/api"
 
@@ -13,6 +14,7 @@ type Client = {
 }
 
 export default function ClientsPage() {
+  const { getToken } = useAuth()
   const [clients, setClients] = useState<Client[]>([])
   const [name, setName] = useState("")
   const [companyName, setCompanyName] = useState("")
@@ -21,7 +23,8 @@ export default function ClientsPage() {
 
   const load = async () => {
     try {
-      setClients(await apiGet<Client[]>("/api/clients"))
+      const token = await getToken()
+      setClients(await apiGet<Client[]>("/api/clients", token ?? undefined))
     } catch (e) {
       setError(String(e))
     }
@@ -34,7 +37,13 @@ export default function ClientsPage() {
   const createClient = async () => {
     try {
       setError("")
-      await apiSend("/api/clients", "POST", { name, company_name: companyName || null, notes: notes || null })
+      const token = await getToken()
+      await apiSend(
+        "/api/clients",
+        "POST",
+        { name, company_name: companyName || null, notes: notes || null },
+        token ?? undefined,
+      )
       setName("")
       setCompanyName("")
       setNotes("")

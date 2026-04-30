@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # /health is exempted so Railway healthchecks always pass.
     allowed_ips: str = ""
 
+    # --- Clerk Auth ---------------------------------------------------------
+    # Set by Railway (Sprint 1). Empty string = auth middleware disabled
+    # (only acceptable for local dev without Clerk configured).
+    clerk_secret_key: str = ""
+    clerk_webhook_secret: str = ""
+    clerk_jwks_url: str = ""
+
     # --- Misc ---------------------------------------------------------------
     # Whether to run the auto-seeder on startup. Disable in production once
     # the DB is seeded, to avoid overwriting admin edits.

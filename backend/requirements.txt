@@ -13,3 +13,8 @@ alembic==1.13.1
 
 # Security — password hashing for admin credentials
 passlib[bcrypt]==1.7.4
+
+# Auth — Clerk JWT verification (RS256 via JWKS) + webhook signature (svix)
+PyJWT==2.12.1
+cryptography==44.0.3
+svix==1.92.2

@@ -16,6 +16,7 @@ _log = logging.getLogger(__name__)
 from app.config import settings
 from app.database import get_db
 import app.models  # noqa: F401 - register all ORM models
+from app.auth import get_current_user
 from app.models import (
     Client,
     ClientProfile,
@@ -28,7 +29,9 @@ from app.models import (
     KitSection,
     KitSubmission,
     KitVersion,
+    User,
 )
+from app.webhooks.clerk import router as clerk_router
 from app.pdf import build_kit_pdf
 from app.risk_engine import calculate_result_from_risks
 from app.rules import calculate_result
@@ -57,6 +60,9 @@ from app.seed_data import PROFILE_GENERAL_DEFINITION, seed_database
 # Base.metadata.create_all here in production.
 # ---------------------------------------------------------------------------
 app = FastAPI(title=settings.app_name, version="0.1.0")
+
+# Clerk webhook routes (no auth — verified via svix signature)
+app.include_router(clerk_router)
 
 
 # ---------------------------------------------------------------------------
@@ -171,8 +177,16 @@ def on_startup() -> None:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _get_client(db: Session, client_id: int) -> Client:
-    client = db.query(Client).filter(Client.id == client_id).first()
+def _get_client(db: Session, client_id: int, user: User) -> Client:
+    client = (
+        db.query(Client)
+        .filter(
+            Client.id == client_id,
+            Client.user_id == user.id,
+            Client.deleted_at.is_(None),
+        )
+        .first()
+    )
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
@@ -286,13 +300,30 @@ def get_profile_definition():
 
 
 @app.get("/api/clients", response_model=list[ClientResponse])
-def list_clients(db: Session = Depends(get_db)):
-    return db.query(Client).order_by(Client.created_at.desc()).all()
+def list_clients(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(Client)
+        .filter(Client.user_id == user.id, Client.deleted_at.is_(None))
+        .order_by(Client.created_at.desc())
+        .all()
+    )
 
 
 @app.post("/api/clients", response_model=ClientResponse)
-def create_client(payload: ClientCreate, db: Session = Depends(get_db)):
-    client = Client(name=payload.name, company_name=payload.company_name, notes=payload.notes)
+def create_client(
+    payload: ClientCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    client = Client(
+        user_id=user.id,
+        name=payload.name,
+        company_name=payload.company_name,
+        notes=payload.notes,
+    )
     db.add(client)
     db.commit()
     db.refresh(client)
@@ -302,13 +333,21 @@ def create_client(payload: ClientCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/clients/{client_id}", response_model=ClientResponse)
-def get_client(client_id: int, db: Session = Depends(get_db)):
-    return _get_client(db, client_id)
+def get_client(
+    client_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _get_client(db, client_id, user)
 
 
 @app.get("/api/clients/{client_id}/profile")
-def get_client_profile(client_id: int, db: Session = Depends(get_db)):
-    _get_client(db, client_id)
+def get_client_profile(
+    client_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
     profile = db.query(ClientProfile).filter(ClientProfile.client_id == client_id).first()
     return {
         "definition": PROFILE_GENERAL_DEFINITION,
@@ -318,8 +357,13 @@ def get_client_profile(client_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/api/clients/{client_id}/profile")
-def save_client_profile(client_id: int, payload: AnswersPayload, db: Session = Depends(get_db)):
-    _get_client(db, client_id)
+def save_client_profile(
+    client_id: int,
+    payload: AnswersPayload,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
     profile = db.query(ClientProfile).filter(ClientProfile.client_id == client_id).first()
     if not profile:
         profile = ClientProfile(client_id=client_id)
@@ -345,8 +389,13 @@ def get_kit_definition(kit_code: str, db: Session = Depends(get_db)):
 
 
 @app.get("/api/clients/{client_id}/kits/{kit_code}")
-def get_kit_submission_view(client_id: int, kit_code: str, db: Session = Depends(get_db)):
-    _get_client(db, client_id)
+def get_kit_submission_view(
+    client_id: int,
+    kit_code: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
@@ -368,13 +417,24 @@ def get_kit_submission_view(client_id: int, kit_code: str, db: Session = Depends
 
 
 @app.put("/api/clients/{client_id}/kits/{kit_code}")
-def save_kit_submission(client_id: int, kit_code: str, payload: AnswersPayload, db: Session = Depends(get_db)):
-    _get_client(db, client_id)
+def save_kit_submission(
+    client_id: int,
+    kit_code: str,
+    payload: AnswersPayload,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
     if not submission:
-        submission = KitSubmission(client_id=client_id, kit_id=kit.id, kit_version_id=version.id)
+        submission = KitSubmission(
+            user_id=user.id,
+            client_id=client_id,
+            kit_id=kit.id,
+            kit_version_id=version.id,
+        )
         db.add(submission)
     submission.answers_json = payload.answers
     submission.status = "completed"
@@ -398,7 +458,13 @@ def save_kit_submission(client_id: int, kit_code: str, payload: AnswersPayload, 
 
     result = _latest_result(db, client_id, kit.id)
     if not result:
-        result = KitResult(client_id=client_id, kit_id=kit.id, kit_version_id=version.id, submission_id=submission.id)
+        result = KitResult(
+            user_id=user.id,
+            client_id=client_id,
+            kit_id=kit.id,
+            kit_version_id=version.id,
+            submission_id=submission.id,
+        )
         db.add(result)
     result.kit_version_id = version.id
     result.submission_id = submission.id
@@ -416,8 +482,13 @@ def save_kit_submission(client_id: int, kit_code: str, payload: AnswersPayload, 
 
 
 @app.get("/api/clients/{client_id}/kits/{kit_code}/result", response_model=ResultResponse)
-def get_kit_result(client_id: int, kit_code: str, db: Session = Depends(get_db)):
-    _get_client(db, client_id)
+def get_kit_result(
+    client_id: int,
+    kit_code: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
     result = _latest_result(db, client_id, kit.id)
     if not result:
@@ -435,8 +506,13 @@ def get_kit_result(client_id: int, kit_code: str, db: Session = Depends(get_db))
 
 
 @app.get("/api/clients/{client_id}/kits/{kit_code}/pdf")
-def get_kit_pdf(client_id: int, kit_code: str, db: Session = Depends(get_db)):
-    client = _get_client(db, client_id)
+def get_kit_pdf(
+    client_id: int,
+    kit_code: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    client = _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
