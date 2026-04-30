@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { SignedIn, SignedOut, UserButton, useAuth } from "@clerk/nextjs"
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 
 import { apiGet } from "@/lib/api"
 import { isAdminRole } from "@/lib/roles"
@@ -13,6 +14,7 @@ type MeResponse = {
 
 export default function TopNav() {
   const { getToken } = useAuth()
+  const pathname = usePathname()
   const [canSeeAdmin, setCanSeeAdmin] = useState(false)
 
   useEffect(() => {
@@ -21,7 +23,10 @@ export default function TopNav() {
     const loadRole = async () => {
       try {
         const token = await getToken()
-        if (!token) return
+        if (!token) {
+          if (!cancelled) setCanSeeAdmin(false)
+          return
+        }
         const me = await apiGet<MeResponse>("/api/me", token)
         if (!cancelled) {
           setCanSeeAdmin(isAdminRole(me.role))
@@ -33,11 +38,22 @@ export default function TopNav() {
       }
     }
 
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        loadRole()
+      }
+    }
+
     loadRole()
+    window.addEventListener("focus", onVisibilityOrFocus)
+    document.addEventListener("visibilitychange", onVisibilityOrFocus)
+
     return () => {
       cancelled = true
+      window.removeEventListener("focus", onVisibilityOrFocus)
+      document.removeEventListener("visibilitychange", onVisibilityOrFocus)
     }
-  }, [getToken])
+  }, [getToken, pathname])
 
   return (
     <div className="nav">
