@@ -35,6 +35,12 @@ def normalize_role(role: str | None) -> str:
     return "client"
 
 
+def should_bootstrap_super_admin(email: str | None) -> bool:
+    target = (settings.bootstrap_super_admin_email or "").strip().lower()
+    current = (email or "").strip().lower()
+    return bool(target and current and current == target)
+
+
 @lru_cache(maxsize=1)
 def _jwks_client() -> PyJWKClient:
     """Singleton JWKS client — caches signing keys automatically."""
@@ -105,6 +111,8 @@ def get_current_user(
 
     if user:
         normalized = normalize_role(user.role)
+        if should_bootstrap_super_admin(user.email):
+            normalized = "super_admin"
         if normalized != user.role:
             user.role = normalized
             db.commit()
@@ -127,11 +135,12 @@ def get_current_user(
         clerk_user_id,
     )
 
+    role = "super_admin" if should_bootstrap_super_admin(email) else "client"
     user = User(
         clerk_user_id=clerk_user_id,
         email=email,
         full_name=full_name,
-        role="client",
+        role=role,
     )
     db.add(user)
     db.commit()
