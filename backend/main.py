@@ -49,6 +49,7 @@ from app.schemas import (
     KitQuestionResponse,
     KitSectionResponse,
     KitSummaryResponse,
+    ProductSummaryResponse,
     ResultResponse,
     RuleResponse,
 )
