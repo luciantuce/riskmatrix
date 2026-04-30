@@ -14,7 +14,7 @@ type Client = {
 }
 
 export default function ClientsPage() {
-  const { getToken } = useAuth()
+  const { getToken, isLoaded } = useAuth()
   const [clients, setClients] = useState<Client[]>([])
   const [name, setName] = useState("")
   const [companyName, setCompanyName] = useState("")
@@ -23,7 +23,12 @@ export default function ClientsPage() {
 
   const load = async () => {
     try {
+      if (!isLoaded) return
       const token = await getToken()
+      if (!token) {
+        setError("Sesiunea nu este gata. Reincarca pagina sau reconecteaza-te.")
+        return
+      }
       setClients(await apiGet<Client[]>("/api/clients", token ?? undefined))
     } catch (e) {
       setError(String(e))
@@ -31,18 +36,27 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
+    if (!isLoaded) return
     load()
-  }, [])
+  }, [isLoaded])
 
   const createClient = async () => {
     try {
       setError("")
+      if (!isLoaded) {
+        setError("Sesiunea nu este gata. Reincarca pagina sau reconecteaza-te.")
+        return
+      }
       const token = await getToken()
+      if (!token) {
+        setError("Nu am putut obtine token-ul de autentificare. Reincarca pagina.")
+        return
+      }
       await apiSend(
         "/api/clients",
         "POST",
         { name, company_name: companyName || null, notes: notes || null },
-        token ?? undefined,
+        token,
       )
       setName("")
       setCompanyName("")
