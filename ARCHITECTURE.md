@@ -4,7 +4,7 @@ Document de decizii arhitecturale pentru tranziția platformei din „internal
 admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 
 > Ultima actualizare: 2026-04-30
-> Status: planificare, înainte de Sprint 1
+> Status: implementare incrementală (RBAC live, subscriptions gating pending)
 
 ---
 
@@ -326,7 +326,7 @@ Logica:
 5. La final de perioadă, Stripe trimite `customer.subscription.deleted` →
    UPDATE `status='canceled'` → user pierde acces la kit-ul respectiv
 
-### Authorization gate
+### Authorization gate (target design for subscriptions)
 
 ```python
 # app/auth.py
@@ -375,12 +375,34 @@ def require_kit_access(
     return user, kit, sub
 ```
 
-Reguli:
+Reguli (target):
 - Endpoint-uri **read** publice (`GET /api/kits` listing) folosesc doar `current_user`
 - Endpoint-uri pe **un kit specific** (`GET /api/clients/{id}/kits/{code}`,
   `PUT`, `GET .../pdf`) folosesc `require_kit_access` — verifică user owns kit
 - `POST /api/clients` folosește doar `current_user` (orice user logged-in poate
   crea Client; ce kit-uri folosește pentru el e gate-uit separat)
+
+### Status implementare (2026-04-30)
+
+Implementat:
+- Auth Clerk + user scoping pe `/api/clients/*`
+- RBAC admin (`client` / `admin` / `super_admin`) pe `/api/admin/*`
+- UI admin ascuns pentru non-admin + management roluri
+
+Neimplementat încă (subscriptions gating):
+- Tabelele `products`, `bundle_includes`, `subscriptions`, `invoices`
+- Webhook-urile Stripe (`/api/webhooks/stripe`)
+- Filtrarea `/api/kits` la kituri cumpărate
+- Guard `require_kit_access` pe endpoint-urile de kit
+
+Plan agreat pentru implementare:
+1. Migrații Alembic pentru `products`, `bundle_includes`, `subscriptions`, `invoices`
+2. Seed catalog produse (5 kituri + 1 bundle)
+3. Funcție backend `user_kit_access(user_id, kit_id)` (direct kit sau bundle)
+4. Filtrare `GET /api/kits` după accesul userului
+5. Guard pe `GET/PUT /api/clients/{id}/kits/{kit_code}` + `result/pdf`
+6. Integrare Stripe webhook pentru sincronizare subscriptions
+7. UI: afișare doar kituri cumpărate (sau lock + CTA upgrade)
 
 ### Fără quota
 
@@ -630,10 +652,9 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 Toate `/api/clients/*` și `/api/clients/{id}/kits/*`:
 - Acum cer `Authorization: Bearer <clerk_jwt>`
 - Filtrate prin `user_id`
-- Mutațiile sunt și gate-uite prin subscription activ
+- Gating pe subscription activ: **pending** (vezi planul de mai sus)
 
-`/api/admin/*`: rămâne pe Basic Auth pentru ops. Migrare la Clerk
-role-based în v2.
+`/api/admin/*`: deja pe Clerk role-based (`admin`/`super_admin`), Basic Auth eliminat.
 
 ---
 

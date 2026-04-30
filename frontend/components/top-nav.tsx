@@ -44,6 +44,7 @@ export default function TopNav() {
       <SignedIn>
         <Link href="/">Dashboard</Link>
         <Link href="/clients">Clienti</Link>
+        <Link href="/catalog">Catalog</Link>
         {canSeeAdmin && <Link href="/admin">Super Contabil</Link>}
         <UserButton afterSignOutUrl="/sign-in" />
       </SignedIn>

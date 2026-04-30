@@ -57,6 +57,9 @@ export default function ClientsPage() {
     <main className="stack">
       <div className="section-title">
         <h1>Clienti</h1>
+        <Link className="button secondary" href="/catalog">
+          Catalog kituri
+        </Link>
       </div>
 
       <div className="card stack">
@@ -92,6 +95,20 @@ export default function ClientsPage() {
           </Link>
         ))}
       </div>
+
+      {clients.length === 0 && (
+        <div className="card stack">
+          <strong>Inca nu ai clienti.</strong>
+          <span className="muted">
+            Poti incepe din Catalog Kituri pentru a vedea oferta de kituri disponibile, apoi adauga primul client.
+          </span>
+          <div>
+            <Link className="button" href="/catalog">
+              Vezi Catalog Kituri
+            </Link>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
