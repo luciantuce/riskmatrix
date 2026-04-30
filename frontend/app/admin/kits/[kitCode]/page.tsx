@@ -1,10 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useAuth } from "@clerk/nextjs"
 
 import { apiGet, apiSend } from "@/lib/api"
+import { isAdminRole } from "@/lib/roles"
 
 type AdminData = {
   kit: {
@@ -19,6 +21,8 @@ type AdminData = {
 
 export default function AdminKitPage() {
   const params = useParams()
+  const router = useRouter()
+  const { getToken } = useAuth()
   const kitCode = params.kitCode as string
 
   const [data, setData] = useState<AdminData | null>(null)
@@ -29,10 +33,12 @@ export default function AdminKitPage() {
   const [rulesJson, setRulesJson] = useState("[]")
   const [templateJson, setTemplateJson] = useState("{}")
   const [error, setError] = useState("")
+  const [token, setToken] = useState<string | null>(null)
+  const [authorized, setAuthorized] = useState(false)
 
-  const load = async () => {
+  const load = async (jwt: string) => {
     try {
-      const res = await apiGet<AdminData>(`/api/admin/kits/${kitCode}`)
+      const res = await apiGet<AdminData>(`/api/admin/kits/${kitCode}`, jwt)
       setData(res)
       setName(res.kit.name)
       setDescription(res.kit.description || "")
@@ -46,11 +52,40 @@ export default function AdminKitPage() {
   }
 
   useEffect(() => {
-    load()
-  }, [kitCode])
+    let cancelled = false
+    const init = async () => {
+      try {
+        const jwt = await getToken()
+        if (!jwt) {
+          router.replace("/")
+          return
+        }
+        const me = await apiGet<{ role: string }>("/api/me", jwt)
+        if (!isAdminRole(me.role)) {
+          router.replace("/")
+          return
+        }
+        if (!cancelled) {
+          setAuthorized(true)
+          setToken(jwt)
+        }
+        await load(jwt)
+      } catch (e) {
+        if (!cancelled) {
+          setError(String(e))
+          setAuthorized(false)
+        }
+      }
+    }
+    init()
+    return () => {
+      cancelled = true
+    }
+  }, [getToken, kitCode, router])
 
   const save = async () => {
     try {
+      if (!token) return
       setError("")
       await apiSend(`/api/admin/kits/${kitCode}`, "PUT", {
         name,
@@ -59,12 +94,14 @@ export default function AdminKitPage() {
         sections: JSON.parse(sectionsJson),
         rules: JSON.parse(rulesJson),
         template: JSON.parse(templateJson),
-      })
-      await load()
+      }, token)
+      await load(token)
     } catch (e) {
       setError(String(e))
     }
   }
+
+  if (!authorized) return null
 
   return (
     <main className="stack">

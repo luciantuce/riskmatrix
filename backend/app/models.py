@@ -18,7 +18,7 @@ class User(Base):
     clerk_user_id = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, nullable=False, index=True)
     full_name = Column(String, nullable=True)
-    role = Column(String, default="user", nullable=False)  # 'user' | 'admin'
+    role = Column(String, default="client", nullable=False)  # 'client' | 'admin' | 'super_admin'
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)

@@ -1,13 +1,11 @@
 import ipaddress
 import logging
-import secrets
 from io import BytesIO
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -16,7 +14,7 @@ _log = logging.getLogger(__name__)
 from app.config import settings
 from app.database import get_db
 import app.models  # noqa: F401 - register all ORM models
-from app.auth import get_current_user
+from app.auth import get_current_user, normalize_role
 from app.models import (
     Client,
     ClientProfile,
@@ -131,33 +129,24 @@ app.add_middleware(
 )
 
 
-# ---------------------------------------------------------------------------
-# Admin Basic Auth
-# ---------------------------------------------------------------------------
-# Temporary protection for /api/admin/*. Replace with proper JWT / Clerk /
-# Supabase auth once user management is in scope.
-# ---------------------------------------------------------------------------
-_basic_auth = HTTPBasic()
+def _is_admin(user: User) -> bool:
+    return normalize_role(user.role) in {"admin", "super_admin"}
 
 
-def require_admin(credentials: HTTPBasicCredentials = Depends(_basic_auth)) -> str:
-    """FastAPI dependency that enforces HTTP Basic Auth on admin routes."""
-    expected_user = settings.admin_username.encode("utf-8")
-    expected_pass = settings.admin_password.encode("utf-8")
-    given_user = credentials.username.encode("utf-8")
-    given_pass = credentials.password.encode("utf-8")
+def _is_super_admin(user: User) -> bool:
+    return normalize_role(user.role) == "super_admin"
 
-    # constant-time comparison to avoid timing attacks
-    user_ok = secrets.compare_digest(given_user, expected_user)
-    pass_ok = secrets.compare_digest(given_pass, expected_pass)
 
-    if not (user_ok and pass_ok):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid admin credentials",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
+def require_admin_user(user: User = Depends(get_current_user)) -> User:
+    if not _is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+def require_super_admin_user(user: User = Depends(get_current_user)) -> User:
+    if not _is_super_admin(user):
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +286,16 @@ def health():
 @app.get("/api/profile/definition")
 def get_profile_definition():
     return PROFILE_GENERAL_DEFINITION
+
+
+@app.get("/api/me")
+def get_me(user: User = Depends(get_current_user)):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": normalize_role(user.role),
+    }
 
 
 @app.get("/api/clients", response_model=list[ClientResponse])
@@ -549,13 +548,13 @@ def get_kit_pdf(
 
 
 # ---------------------------------------------------------------------------
-# Admin routes — all require Basic Auth
+# Admin routes — role-based access (admin/super_admin)
 # ---------------------------------------------------------------------------
 @app.get("/api/admin/kits/{kit_code}", response_model=AdminKitResponse)
 def get_admin_kit(
     kit_code: str,
     db: Session = Depends(get_db),
-    _admin: str = Depends(require_admin),
+    _admin: User = Depends(require_admin_user),
 ):
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
@@ -590,7 +589,7 @@ def update_admin_kit(
     kit_code: str,
     payload: AdminKitUpdatePayload,
     db: Session = Depends(get_db),
-    _admin: str = Depends(require_admin),
+    _admin: User = Depends(require_admin_user),
 ):
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
@@ -668,3 +667,54 @@ def update_admin_kit(
 
     db.commit()
     return {"ok": True}
+
+
+@app.put("/api/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    payload: dict[str, str],
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin_user),
+):
+    requested_role = normalize_role(payload.get("role"))
+    if requested_role not in {"client", "admin", "super_admin"}:
+        raise HTTPException(status_code=400, detail="Invalid role")
+
+    target = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    current_role = normalize_role(target.role)
+    if current_role == requested_role:
+        return {
+            "ok": True,
+            "user_id": target.id,
+            "old_role": current_role,
+            "new_role": requested_role,
+        }
+
+    if current_role == "super_admin" and requested_role != "super_admin":
+        super_admin_count = (
+            db.query(User)
+            .filter(User.deleted_at.is_(None), User.role.in_(["super_admin"]))
+            .count()
+        )
+        if super_admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot demote the last super_admin")
+
+    target.role = requested_role
+    db.commit()
+
+    _log.info(
+        "Role changed by user_id=%s: target_user_id=%s %s -> %s",
+        actor.id,
+        target.id,
+        current_role,
+        requested_role,
+    )
+    return {
+        "ok": True,
+        "user_id": target.id,
+        "old_role": current_role,
+        "new_role": requested_role,
+    }

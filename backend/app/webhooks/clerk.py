@@ -156,10 +156,12 @@ def _on_user_created(db: Session, data: dict) -> None:
     if user:
         user.email = email
         user.full_name = full_name
+        if user.role == "user":
+            user.role = "client"
         user.updated_at = datetime.utcnow()
         _log.info("user.created: user %s already existed — updated", clerk_user_id)
     else:
-        db.add(User(clerk_user_id=clerk_user_id, email=email, full_name=full_name))
+        db.add(User(clerk_user_id=clerk_user_id, email=email, full_name=full_name, role="client"))
         _log.info("user.created: inserted %s (%s)", clerk_user_id, email)
 
 
@@ -172,10 +174,13 @@ def _on_user_updated(db: Session, data: dict) -> None:
             clerk_user_id=clerk_user_id,
             email=_primary_email(data),
             full_name=_full_name(data),
+            role="client",
         ))
     else:
         user.email = _primary_email(data)
         user.full_name = _full_name(data)
+        if user.role == "user":
+            user.role = "client"
         user.updated_at = datetime.utcnow()
         _log.info("user.updated: updated %s", clerk_user_id)
 

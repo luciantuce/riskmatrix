@@ -24,6 +24,15 @@ from app.database import get_db
 from app.models import User
 
 _log = logging.getLogger(__name__)
+VALID_ROLES = {"client", "admin", "super_admin"}
+
+
+def normalize_role(role: str | None) -> str:
+    if role == "user":
+        return "client"
+    if role in VALID_ROLES:
+        return role
+    return "client"
 
 
 @lru_cache(maxsize=1)
@@ -95,6 +104,11 @@ def get_current_user(
     )
 
     if user:
+        normalized = normalize_role(user.role)
+        if normalized != user.role:
+            user.role = normalized
+            db.commit()
+            db.refresh(user)
         return user
 
     # Webhook hasn't been processed yet — lazy-create from JWT claims.
@@ -117,7 +131,7 @@ def get_current_user(
         clerk_user_id=clerk_user_id,
         email=email,
         full_name=full_name,
-        role="user",
+        role="client",
     )
     db.add(user)
     db.commit()
