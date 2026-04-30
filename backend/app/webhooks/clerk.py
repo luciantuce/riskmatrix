@@ -2,7 +2,7 @@
 Clerk webhook handler.
 
 Endpoint: POST /api/webhooks/clerk
-Auth:     svix signature verification (CLERK_WEBHOOK_SECRET)
+Auth:     svix signature verified manually via HMAC-SHA256 (no svix lib needed)
 Idempotency: webhook_events(source, external_id) UNIQUE constraint
 
 Events handled:
@@ -11,12 +11,16 @@ Events handled:
   user.deleted  → soft-delete (deleted_at = now())
 """
 
+import base64
+import hashlib
+import hmac
+import json
 import logging
+import time
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from svix.webhooks import Webhook, WebhookVerificationError
 
 from app.config import settings
 from app.database import get_db
@@ -33,25 +37,45 @@ def _verify_svix(
     svix_timestamp: str,
     svix_signature: str,
 ) -> dict:
-    """Verify the svix signature and return the parsed event payload."""
+    """
+    Verify Clerk webhook signature without the svix library.
+    Implements: https://docs.svix.com/receiving/verifying-payloads/how-manual
+    """
     if not settings.clerk_webhook_secret:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Webhook secret not configured",
         )
-    wh = Webhook(settings.clerk_webhook_secret)
-    headers = {
-        "svix-id": svix_id,
-        "svix-timestamp": svix_timestamp,
-        "svix-signature": svix_signature,
-    }
+
+    # 1. Reject stale timestamps (>5 minutes)
     try:
-        return wh.verify(payload, headers)
-    except WebhookVerificationError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid webhook signature",
-        )
+        ts = int(svix_timestamp)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid svix-timestamp")
+    if abs(int(time.time()) - ts) > 300:
+        raise HTTPException(status_code=400, detail="Webhook timestamp too old or in future")
+
+    # 2. Build signed content: "{svix_id}.{svix_timestamp}.{body}"
+    signed = svix_id.encode() + b"." + svix_timestamp.encode() + b"." + payload
+
+    # 3. Decode secret — format: "whsec_<base64>"
+    secret = settings.clerk_webhook_secret
+    if secret.startswith("whsec_"):
+        secret = secret[6:]
+    try:
+        key = base64.b64decode(secret)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Invalid webhook secret format")
+
+    # 4. Compute HMAC-SHA256 and compare
+    expected = base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
+
+    # Header can contain multiple space-separated signatures: "v1,<sig> v1,<sig2>"
+    for sig in svix_signature.split(" "):
+        if sig.startswith("v1,") and hmac.compare_digest(sig[3:], expected):
+            return json.loads(payload)
+
+    raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
 
 @router.post("/api/webhooks/clerk")
