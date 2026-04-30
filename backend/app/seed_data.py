@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.kit_questions_data import KIT_ADMINISTRATIV, KIT_RISC_EXTINS_QUESTIONS, RESPONSABIL_OPTS
 from app.models import (
+    BundleInclude,
     Kit,
     KitDocumentTemplate,
     KitQuestion,
@@ -126,58 +127,108 @@ def _build_questions_from_risc_extins(version_id: int, risk_map: dict[str, Risk]
 def seed_database(db: Session) -> None:
     risk_map = _seed_risks(db)
 
-    if db.query(Kit).count() > 0:
-        db.commit()
-        return
-
-    for idx, kdef in enumerate(KIT_DEFS):
-        kit = Kit(
-            code=kdef["code"],
-            name=kdef["name"],
-            description=kdef["description"],
-            documentation_url=kdef.get("documentation_url"),
-            display_order=idx + 1,
-            pricing_type="one_time",
-            price_eur=kdef["price_eur"],
-            active=True,
-        )
-        db.add(kit)
-        db.flush()
-
-        version = KitVersion(
-            kit_id=kit.id,
-            version_number=1,
-            status="published",
-            notes="Seed V2 – 32 întrebări, 50 riscuri",
-            published_at=datetime.utcnow(),
-        )
-        db.add(version)
-        db.flush()
-
-        if kdef["code"] == "internal_fiscal_procedures":
-            _seed_kit_from_admin(db, version, kit, risk_map)
-        elif kdef["code"] == "affiliate_identification":
-            _seed_kit_from_risc_extins(db, version, kit, risk_map)
-        else:
-            _seed_kit_generic(db, version, kit, risk_map, kdef["code"])
-
-        db.add(
-            KitDocumentTemplate(
-                kit_version_id=version.id,
-                document_type="result_pdf",
-                title=f"{kit.name} - Raport",
-                intro_text=f"Raport metodologic pentru {kit.name}.",
-                footer_text="Document generat din Kit Platform V2.",
-                signature_block_text="Semnatura administrator / reprezentant legal",
-                show_risk_score=True,
-                show_risk_flags=True,
-                show_responsibility_matrix=True,
-                show_tariff_recommendation=True,
-                template_json={},
+    if db.query(Kit).count() == 0:
+        for idx, kdef in enumerate(KIT_DEFS):
+            kit = Kit(
+                code=kdef["code"],
+                name=kdef["name"],
+                description=kdef["description"],
+                documentation_url=kdef.get("documentation_url"),
+                display_order=idx + 1,
+                pricing_type="one_time",
+                price_eur=kdef["price_eur"],
+                active=True,
             )
-        )
+            db.add(kit)
+            db.flush()
+
+            version = KitVersion(
+                kit_id=kit.id,
+                version_number=1,
+                status="published",
+                notes="Seed V2 – 32 întrebări, 50 riscuri",
+                published_at=datetime.utcnow(),
+            )
+            db.add(version)
+            db.flush()
+
+            if kdef["code"] == "internal_fiscal_procedures":
+                _seed_kit_from_admin(db, version, kit, risk_map)
+            elif kdef["code"] == "affiliate_identification":
+                _seed_kit_from_risc_extins(db, version, kit, risk_map)
+            else:
+                _seed_kit_generic(db, version, kit, risk_map, kdef["code"])
+
+            db.add(
+                KitDocumentTemplate(
+                    kit_version_id=version.id,
+                    document_type="result_pdf",
+                    title=f"{kit.name} - Raport",
+                    intro_text=f"Raport metodologic pentru {kit.name}.",
+                    footer_text="Document generat din Kit Platform V2.",
+                    signature_block_text="Semnatura administrator / reprezentant legal",
+                    show_risk_score=True,
+                    show_risk_flags=True,
+                    show_responsibility_matrix=True,
+                    show_tariff_recommendation=True,
+                    template_json={},
+                )
+            )
+
+    _seed_products_catalog(db)
 
     db.commit()
+
+
+def _seed_products_catalog(db: Session) -> None:
+    kits = db.query(Kit).order_by(Kit.display_order.asc()).all()
+    if not kits:
+        return
+
+    for order, kit in enumerate(kits, start=1):
+        code = f"kit_{kit.code}"
+        product = db.query(Product).filter(Product.code == code).first()
+        if product:
+            product.name = kit.name
+            product.type = "kit"
+            product.kit_id = kit.id
+            product.active = True
+            product.display_order = order
+        else:
+            db.add(
+                Product(
+                    code=code,
+                    name=kit.name,
+                    type="kit",
+                    kit_id=kit.id,
+                    display_order=order,
+                    active=True,
+                )
+            )
+
+    bundle = db.query(Product).filter(Product.code == "bundle_all_kits").first()
+    if not bundle:
+        bundle = Product(
+            code="bundle_all_kits",
+            name="Bundle toate kiturile",
+            type="bundle",
+            kit_id=None,
+            display_order=len(kits) + 1,
+            active=True,
+        )
+        db.add(bundle)
+        db.flush()
+    else:
+        bundle.name = "Bundle toate kiturile"
+        bundle.type = "bundle"
+        bundle.kit_id = None
+        bundle.active = True
+
+    existing = {(row.bundle_product_id, row.kit_id) for row in db.query(BundleInclude).filter(BundleInclude.bundle_product_id == bundle.id).all()}
+    for kit in kits:
+        key = (bundle.id, kit.id)
+        if key not in existing:
+            db.add(BundleInclude(bundle_product_id=bundle.id, kit_id=kit.id))
 
 
 def _seed_kit_from_admin(db: Session, version: KitVersion, kit: Kit, risk_map: dict[str, Risk]) -> None:
@@ -251,3 +302,4 @@ def _seed_kit_from_risc_extins(db: Session, version: KitVersion, kit: Kit, risk_
 def _seed_kit_generic(db: Session, version: KitVersion, kit: Kit, risk_map: dict[str, Risk], code: str) -> None:
     """Kituri Fiscal, Nerezidenți, Afiliați – folosesc structura Risc Extins pentru MVP."""
     _seed_kit_from_risc_extins(db, version, kit, risk_map)
+    Product,

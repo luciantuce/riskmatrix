@@ -26,6 +26,7 @@ class User(Base):
     clients = relationship("Client", back_populates="user")
     kit_submissions = relationship("KitSubmission", back_populates="user")
     kit_results = relationship("KitResult", back_populates="user")
+    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
 
 
 class WebhookEvent(Base):
@@ -98,6 +99,74 @@ class Kit(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     versions = relationship("KitVersion", back_populates="kit", cascade="all, delete-orphan")
+    products = relationship("Product", back_populates="kit")
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # 'kit' | 'bundle'
+    kit_id = Column(Integer, ForeignKey("kits.id"), nullable=True)
+    stripe_price_id_monthly = Column(String, nullable=True)
+    stripe_price_id_yearly = Column(String, nullable=True)
+    display_order = Column(Integer, default=100, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    kit = relationship("Kit", back_populates="products")
+    subscriptions = relationship("Subscription", back_populates="product")
+    included_kits = relationship("BundleInclude", back_populates="bundle_product", cascade="all, delete-orphan")
+
+
+class BundleInclude(Base):
+    __tablename__ = "bundle_includes"
+
+    bundle_product_id = Column(Integer, ForeignKey("products.id"), primary_key=True)
+    kit_id = Column(Integer, ForeignKey("kits.id"), primary_key=True)
+
+    bundle_product = relationship("Product", back_populates="included_kits")
+    kit = relationship("Kit")
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    stripe_subscription_id = Column(String, unique=True, nullable=True, index=True)
+    stripe_customer_id = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="active", index=True)  # active | canceled | past_due | unpaid
+    billing_cycle = Column(String, nullable=False, default="monthly")  # monthly | yearly
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    cancel_at_period_end = Column(Boolean, default=False, nullable=False)
+    canceled_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="subscriptions")
+    product = relationship("Product", back_populates="subscriptions")
+
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    stripe_invoice_id = Column(String, unique=True, nullable=True, index=True)
+    amount_cents = Column(Integer, nullable=False, default=0)
+    currency = Column(String, nullable=False, default="EUR")
+    status = Column(String, nullable=False, default="open")
+    hosted_invoice_url = Column(String, nullable=True)
+    pdf_url = Column(String, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class KitVersion(Base):

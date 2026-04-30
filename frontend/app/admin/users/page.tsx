@@ -16,6 +16,11 @@ type AdminUser = {
   created_at: string
 }
 
+type Product = {
+  code: string
+  name: string
+}
+
 export default function AdminUsersPage() {
   const router = useRouter()
   const { getToken } = useAuth()
@@ -23,6 +28,8 @@ export default function AdminUsersPage() {
   const [authorized, setAuthorized] = useState(false)
   const [selfRole, setSelfRole] = useState<string>("client")
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [selectedProductByUser, setSelectedProductByUser] = useState<Record<number, string>>({})
   const [error, setError] = useState("")
 
   const canManageRoles = selfRole === "super_admin"
@@ -35,6 +42,11 @@ export default function AdminUsersPage() {
   const loadUsers = async (jwt: string) => {
     const rows = await apiGet<AdminUser[]>("/api/admin/users", jwt)
     setUsers(rows)
+  }
+
+  const loadProducts = async (jwt: string) => {
+    const rows = await apiGet<Product[]>("/api/products", jwt)
+    setProducts(rows)
   }
 
   useEffect(() => {
@@ -57,6 +69,7 @@ export default function AdminUsersPage() {
           setAuthorized(true)
         }
         await loadUsers(jwt)
+        await loadProducts(jwt)
       } catch (e) {
         if (!cancelled) {
           setError(String(e))
@@ -76,6 +89,18 @@ export default function AdminUsersPage() {
       setError("")
       await apiSend(`/api/admin/users/${userId}/role`, "PUT", { role }, token)
       await loadUsers(token)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const grantProduct = async (userId: number) => {
+    if (!token || !canManageRoles) return
+    const productCode = selectedProductByUser[userId]
+    if (!productCode) return
+    try {
+      setError("")
+      await apiSend(`/api/admin/users/${userId}/subscriptions`, "POST", { product_code: productCode, billing_cycle: "monthly" }, token)
     } catch (e) {
       setError(String(e))
     }
@@ -106,14 +131,30 @@ export default function AdminUsersPage() {
             <div className="row" style={{ gap: 8, alignItems: "center" }}>
               <span className="pill">{u.role}</span>
               {canManageRoles && (
-                <select
-                  value={u.role}
-                  onChange={(e) => changeRole(u.id, e.target.value as AdminUser["role"])}
-                >
-                  <option value="client">client</option>
-                  <option value="admin">admin</option>
-                  <option value="super_admin">super_admin</option>
-                </select>
+                <div className="row" style={{ alignItems: "center" }}>
+                  <select
+                    value={u.role}
+                    onChange={(e) => changeRole(u.id, e.target.value as AdminUser["role"])}
+                  >
+                    <option value="client">client</option>
+                    <option value="admin">admin</option>
+                    <option value="super_admin">super_admin</option>
+                  </select>
+                  <select
+                    value={selectedProductByUser[u.id] || ""}
+                    onChange={(e) =>
+                      setSelectedProductByUser((prev) => ({ ...prev, [u.id]: e.target.value }))
+                    }
+                  >
+                    <option value="">Alege produs</option>
+                    {products.map((p) => (
+                      <option key={p.code} value={p.code}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => grantProduct(u.id)}>Acorda acces</button>
+                </div>
               )}
             </div>
           </div>

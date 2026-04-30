@@ -6,17 +6,17 @@ import { useAuth } from "@clerk/nextjs"
 
 import { apiGet } from "@/lib/api"
 
-type Kit = {
+type Product = {
+  id: number
   code: string
   name: string
-  description: string | null
-  price_eur: number
-  documentation_url: string | null
+  type: string
+  kit_id: number | null
 }
 
 export default function CatalogPage() {
   const { getToken } = useAuth()
-  const [kits, setKits] = useState<Kit[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -24,8 +24,8 @@ export default function CatalogPage() {
     const load = async () => {
       try {
         const token = await getToken()
-        const rows = await apiGet<Kit[]>("/api/kits", token ?? undefined)
-        if (!cancelled) setKits(rows)
+        const rows = await apiGet<Product[]>("/api/products", token ?? undefined)
+        if (!cancelled) setProducts(rows)
       } catch (e) {
         if (!cancelled) setError(String(e))
       }
@@ -44,19 +44,14 @@ export default function CatalogPage() {
       </div>
 
       <div className="grid grid-2">
-        {kits.map((kit) => (
-          <div key={kit.code} className="card stack">
+        {products.map((product) => (
+          <div key={product.code} className="card stack">
             <div className="section-title" style={{ marginBottom: 0 }}>
-              <strong>{kit.name}</strong>
-              <span className="pill">{kit.price_eur.toFixed(0)} EUR</span>
+              <strong>{product.name}</strong>
+              <span className="pill">{product.type}</span>
             </div>
-            <span className="muted">{kit.description || "Fara descriere."}</span>
+            <span className="muted">Cod produs: {product.code}</span>
             <div className="row">
-              {kit.documentation_url && (
-                <a href={kit.documentation_url} className="button secondary" target="_blank" rel="noreferrer">
-                  Vezi documentatia
-                </a>
-              )}
               <button disabled title="Urmeaza integrarea Stripe">
                 Cumpara (curand)
               </button>

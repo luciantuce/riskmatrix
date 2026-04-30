@@ -2,6 +2,7 @@ import ipaddress
 import logging
 from io import BytesIO
 from typing import Any
+from datetime import datetime, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,7 @@ from app.database import get_db
 import app.models  # noqa: F401 - register all ORM models
 from app.auth import get_current_user, normalize_role
 from app.models import (
+    BundleInclude,
     Client,
     ClientProfile,
     Kit,
@@ -34,6 +36,7 @@ from app.pdf import build_kit_pdf
 from app.risk_engine import calculate_result_from_risks
 from app.rules import calculate_result
 from app.schemas import (
+    AdminGrantSubscriptionPayload,
     AdminUpdateUserRolePayload,
     AdminUserResponse,
     AdminKitResponse,
@@ -190,6 +193,49 @@ def _get_kit(db: Session, code: str) -> Kit:
     return kit
 
 
+def _has_full_kit_access(user: User) -> bool:
+    return normalize_role(user.role) in {"admin", "super_admin"}
+
+
+def _user_has_kit_access(db: Session, user_id: int, kit_id: int) -> bool:
+    direct = (
+        db.query(Subscription.id)
+        .join(Product, Product.id == Subscription.product_id)
+        .filter(
+            Subscription.user_id == user_id,
+            Subscription.status == "active",
+            Product.active == True,
+            Product.type == "kit",
+            Product.kit_id == kit_id,
+        )
+        .first()
+    )
+    if direct:
+        return True
+
+    bundle = (
+        db.query(Subscription.id)
+        .join(Product, Product.id == Subscription.product_id)
+        .join(BundleInclude, BundleInclude.bundle_product_id == Product.id)
+        .filter(
+            Subscription.user_id == user_id,
+            Subscription.status == "active",
+            Product.active == True,
+            Product.type == "bundle",
+            BundleInclude.kit_id == kit_id,
+        )
+        .first()
+    )
+    return bundle is not None
+
+
+def _require_kit_access(db: Session, user: User, kit: Kit) -> None:
+    if _has_full_kit_access(user):
+        return
+    if not _user_has_kit_access(db, user.id, kit.id):
+        raise HTTPException(status_code=402, detail="Kit subscription required")
+
+
 def _get_published_version(db: Session, kit_id: int) -> KitVersion:
     version = (
         db.query(KitVersion)
@@ -300,6 +346,13 @@ def get_me(user: User = Depends(get_current_user)):
     }
 
 
+@app.get("/api/products", response_model=list[ProductSummaryResponse])
+def list_products(
+    db: Session = Depends(get_db),
+):
+    return db.query(Product).filter(Product.active == True).order_by(Product.display_order.asc()).all()
+
+
 @app.get("/api/clients", response_model=list[ClientResponse])
 def list_clients(
     user: User = Depends(get_current_user),
@@ -378,13 +431,21 @@ def save_client_profile(
 
 
 @app.get("/api/kits", response_model=list[KitSummaryResponse])
-def list_kits(db: Session = Depends(get_db)):
-    return db.query(Kit).filter(Kit.active == True).order_by(Kit.display_order.asc()).all()
+def list_kits(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    kits = db.query(Kit).filter(Kit.active == True).order_by(Kit.display_order.asc()).all()
+    if _has_full_kit_access(user):
+        return kits
+    return [kit for kit in kits if _user_has_kit_access(db, user.id, kit.id)]
 
 
 @app.get("/api/kits/{kit_code}")
-def get_kit_definition(kit_code: str, db: Session = Depends(get_db)):
+def get_kit_definition(
+    kit_code: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     kit = _get_kit(db, kit_code)
+    _require_kit_access(db, user, kit)
     version = _get_published_version(db, kit.id)
     return _serialize_definition(kit, version)
 
@@ -398,6 +459,7 @@ def get_kit_submission_view(
 ):
     _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
+    _require_kit_access(db, user, kit)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
     result = _latest_result(db, client_id, kit.id)
@@ -427,6 +489,7 @@ def save_kit_submission(
 ):
     _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
+    _require_kit_access(db, user, kit)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
     if not submission:
@@ -491,6 +554,7 @@ def get_kit_result(
 ):
     _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
+    _require_kit_access(db, user, kit)
     result = _latest_result(db, client_id, kit.id)
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
@@ -515,6 +579,7 @@ def get_kit_pdf(
 ):
     client = _get_client(db, client_id, user)
     kit = _get_kit(db, kit_code)
+    _require_kit_access(db, user, kit)
     version = _get_published_version(db, kit.id)
     submission = _latest_submission(db, client_id, kit.id)
     result = _latest_result(db, client_id, kit.id)
@@ -743,3 +808,50 @@ def list_admin_users(
         )
         for user in users
     ]
+
+
+@app.post("/api/admin/users/{user_id}/subscriptions")
+def grant_user_subscription(
+    user_id: int,
+    payload: AdminGrantSubscriptionPayload,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin_user),
+):
+    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    product = db.query(Product).filter(Product.code == payload.product_code, Product.active == True).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    existing = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.product_id == product.id,
+            Subscription.status == "active",
+        )
+        .first()
+    )
+    if existing:
+        return {"ok": True, "subscription_id": existing.id, "already_active": True}
+
+    now = datetime.utcnow()
+    period_days = 30 if payload.billing_cycle == "monthly" else 365
+    sub = Subscription(
+        user_id=user.id,
+        product_id=product.id,
+        status="active",
+        billing_cycle=payload.billing_cycle,
+        current_period_start=now,
+        current_period_end=now + timedelta(days=period_days),
+        cancel_at_period_end=False,
+    )
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    return {"ok": True, "subscription_id": sub.id, "already_active": False}
+    Product,
+    Subscription,
+    ProductSummaryResponse,

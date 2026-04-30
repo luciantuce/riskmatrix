@@ -128,3 +128,21 @@ class AdminUserResponse(BaseModel):
 
 class AdminUpdateUserRolePayload(BaseModel):
     role: str
+
+
+class ProductSummaryResponse(BaseModel):
+    id: int
+    code: str
+    name: str
+    type: str
+    kit_id: int | None
+    active: bool
+    display_order: int
+
+    class Config:
+        from_attributes = True
+
+
+class AdminGrantSubscriptionPayload(BaseModel):
+    product_code: str
+    billing_cycle: str = "monthly"
