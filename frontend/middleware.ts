@@ -107,6 +107,7 @@ function clientIp(request: NextRequest): string | null {
 
 function checkIpAllowlist(request: NextRequest): NextResponse | null {
   if (allowedRaw.length === 0) return null // gate disabled
+  if (request.nextUrl.pathname === "/api/health") return null // always allow healthcheck
   const ip = clientIp(request)
   if (!ip || !isAllowed(ip)) {
     return new NextResponse("Forbidden", { status: 403 })
