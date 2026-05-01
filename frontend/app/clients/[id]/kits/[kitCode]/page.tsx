@@ -52,6 +52,7 @@ export default function KitDetailPage() {
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
 
   const humanizeFlag = (flag: string) =>
     flag
@@ -111,6 +112,30 @@ export default function KitDetailPage() {
       setNotice("Nu am putut salva raspunsurile.")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const downloadPdf = async () => {
+    try {
+      setIsDownloadingPdf(true)
+      setNotice("")
+      const token = await getToken()
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8010"
+      const res = await fetch(`${apiUrl}/api/clients/${clientId}/kits/${kitCode}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        throw new Error(await res.text())
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank", "noopener,noreferrer")
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch (e) {
+      setError(String(e))
+      setNotice("Nu am putut genera PDF-ul.")
+    } finally {
+      setIsDownloadingPdf(false)
     }
   }
 
@@ -217,9 +242,9 @@ export default function KitDetailPage() {
           <button onClick={save} disabled={isSaving}>
             {isSaving ? "Salvez..." : "Salveaza si calculeaza"}
           </button>
-          <a className="button secondary" href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8010"}/api/clients/${clientId}/kits/${kitCode}/pdf`} target="_blank">
-            Descarca PDF
-          </a>
+          <button className="button secondary" onClick={downloadPdf} disabled={isDownloadingPdf}>
+            {isDownloadingPdf ? "Generez PDF..." : "Descarca PDF"}
+          </button>
           <a
             href={data?.definition.documentation_url || `/docs/kit-${kitCode}.pdf`}
             target="_blank"

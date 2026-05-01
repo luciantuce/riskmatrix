@@ -4,7 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import KitQuestion, KitVersion, QuestionRiskMap, Risk
+from app.models import KitQuestion, KitSection, KitVersion, QuestionRiskMap
 from app.risks_data import RESPONSABIL_COEF, RISK_LEVEL_THRESHOLDS, TARIFF_ADJUSTMENT
 
 
@@ -41,8 +41,10 @@ def calculate_result_from_risks(
     version = (
         db.query(KitVersion)
         .options(
-            joinedload(KitVersion.sections).joinedload(KitQuestion.section),
-            joinedload(KitVersion.sections).joinedload(KitQuestion.risk_maps).joinedload(QuestionRiskMap.risk),
+            joinedload(KitVersion.sections)
+            .joinedload(KitSection.questions)
+            .joinedload(KitQuestion.risk_maps)
+            .joinedload(QuestionRiskMap.risk),
         )
         .filter(KitVersion.id == kit_version_id)
         .first()
