@@ -31,6 +31,9 @@ export default function AdminUsersPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [selectedProductByUser, setSelectedProductByUser] = useState<Record<number, string>>({})
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+  const [busyRoleUserId, setBusyRoleUserId] = useState<number | null>(null)
+  const [busyGrantUserId, setBusyGrantUserId] = useState<number | null>(null)
 
   const canManageRoles = selfRole === "super_admin"
 
@@ -86,11 +89,17 @@ export default function AdminUsersPage() {
   const changeRole = async (userId: number, role: AdminUser["role"]) => {
     if (!token || !canManageRoles) return
     try {
+      setBusyRoleUserId(userId)
+      setNotice("")
       setError("")
       await apiSend(`/api/admin/users/${userId}/role`, "PUT", { role }, token)
       await loadUsers(token)
+      setNotice("Rol actualizat.")
     } catch (e) {
       setError(String(e))
+      setNotice("Nu am putut actualiza rolul.")
+    } finally {
+      setBusyRoleUserId(null)
     }
   }
 
@@ -99,10 +108,16 @@ export default function AdminUsersPage() {
     const productCode = selectedProductByUser[userId]
     if (!productCode) return
     try {
+      setBusyGrantUserId(userId)
+      setNotice("")
       setError("")
       await apiSend(`/api/admin/users/${userId}/subscriptions`, "POST", { product_code: productCode, billing_cycle: "monthly" }, token)
+      setNotice("Acces acordat.")
     } catch (e) {
       setError(String(e))
+      setNotice("Nu am putut acorda accesul.")
+    } finally {
+      setBusyGrantUserId(null)
     }
   }
 
@@ -134,6 +149,7 @@ export default function AdminUsersPage() {
                 <div className="row" style={{ alignItems: "center" }}>
                   <select
                     value={u.role}
+                    disabled={busyRoleUserId === u.id}
                     onChange={(e) => changeRole(u.id, e.target.value as AdminUser["role"])}
                   >
                     <option value="client">client</option>
@@ -154,6 +170,7 @@ export default function AdminUsersPage() {
                     ))}
                   </select>
                   <button onClick={() => grantProduct(u.id)}>Acorda acces</button>
+                  {busyGrantUserId === u.id && <span className="muted">Se proceseaza...</span>}
                 </div>
               )}
             </div>
@@ -161,6 +178,7 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
+      {notice && <p className="muted">{notice}</p>}
       {error && <p className="muted">{error}</p>}
     </main>
   )

@@ -50,6 +50,8 @@ export default function KitDetailPage() {
   const [data, setData] = useState<ViewResponse | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
   const humanizeFlag = (flag: string) =>
     flag
@@ -98,11 +100,17 @@ export default function KitDetailPage() {
 
   const save = async () => {
     try {
+      setIsSaving(true)
+      setNotice("")
       const token = await getToken()
       await apiSend(`/api/clients/${clientId}/kits/${kitCode}`, "PUT", { answers }, token ?? undefined)
       await load()
+      setNotice("Raspunsuri salvate si rezultat recalculat.")
     } catch (e) {
       setError(String(e))
+      setNotice("Nu am putut salva raspunsurile.")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -206,7 +214,9 @@ export default function KitDetailPage() {
         ))}
 
         <div className="row" style={{ flexWrap: "wrap", gap: 12 }}>
-          <button onClick={save}>Salveaza si calculeaza</button>
+          <button onClick={save} disabled={isSaving}>
+            {isSaving ? "Salvez..." : "Salveaza si calculeaza"}
+          </button>
           <a className="button secondary" href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8010"}/api/clients/${clientId}/kits/${kitCode}/pdf`} target="_blank">
             Descarca PDF
           </a>
@@ -219,6 +229,7 @@ export default function KitDetailPage() {
             Biblioteca
           </a>
         </div>
+        {notice && <p className="muted">{notice}</p>}
       </div>
 
       {data?.result && (

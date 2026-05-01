@@ -20,6 +20,8 @@ export default function ClientsPage() {
   const [companyName, setCompanyName] = useState("")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
+  const [notice, setNotice] = useState("")
 
   const load = async () => {
     try {
@@ -42,6 +44,8 @@ export default function ClientsPage() {
 
   const createClient = async () => {
     try {
+      setIsCreating(true)
+      setNotice("")
       setError("")
       if (!isLoaded) {
         setError("Sesiunea nu este gata. Reincarca pagina sau reconecteaza-te.")
@@ -61,9 +65,13 @@ export default function ClientsPage() {
       setName("")
       setCompanyName("")
       setNotes("")
+      setNotice("Client creat.")
       await load()
     } catch (e) {
       setError(String(e))
+      setNotice("Nu am putut crea clientul.")
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -93,8 +101,11 @@ export default function ClientsPage() {
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
         </div>
         <div>
-          <button onClick={createClient}>Creeaza client</button>
+          <button onClick={createClient} disabled={isCreating}>
+            {isCreating ? "Creez..." : "Creeaza client"}
+          </button>
         </div>
+        {notice && <p className="muted">{notice}</p>}
         {error && <p className="muted">{error}</p>}
       </div>
 

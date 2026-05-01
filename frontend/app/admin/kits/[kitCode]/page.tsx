@@ -33,6 +33,8 @@ export default function AdminKitPage() {
   const [rulesJson, setRulesJson] = useState("[]")
   const [templateJson, setTemplateJson] = useState("{}")
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [authorized, setAuthorized] = useState(false)
 
@@ -85,6 +87,8 @@ export default function AdminKitPage() {
 
   const save = async () => {
     try {
+      setIsSaving(true)
+      setNotice("")
       if (!token) return
       setError("")
       await apiSend(`/api/admin/kits/${kitCode}`, "PUT", {
@@ -96,8 +100,12 @@ export default function AdminKitPage() {
         template: JSON.parse(templateJson),
       }, token)
       await load(token)
+      setNotice("Configurare salvata.")
     } catch (e) {
       setError(String(e))
+      setNotice("Nu am putut salva configurarea.")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -143,9 +151,12 @@ export default function AdminKitPage() {
       </div>
 
       <div className="row">
-        <button onClick={save}>Salveaza configurarea</button>
+        <button onClick={save} disabled={isSaving}>
+          {isSaving ? "Salvez..." : "Salveaza configurarea"}
+        </button>
       </div>
 
+      {notice && <p className="muted">{notice}</p>}
       {error && <p className="muted">{error}</p>}
       {data && <p className="muted">Versiunea publicata curenta este editabila direct in acest MVP V2.</p>}
     </main>
