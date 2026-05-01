@@ -1,6 +1,7 @@
 from io import BytesIO
 from pathlib import Path
 
+import reportlab
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import simpleSplit
@@ -22,12 +23,27 @@ def _humanize_flag(value: str) -> str:
     return _humanize_key(value)
 
 
+def _pdf_safe_text(value: object) -> str:
+    text = str(value or "")
+    # Fallback for fonts that miss Romanian comma-below glyphs.
+    return (
+        text.replace("Ș", "Ş")
+        .replace("ș", "ş")
+        .replace("Ț", "Ţ")
+        .replace("ț", "ţ")
+    )
+
+
 def _register_fonts() -> tuple[str, str]:
     global FONTS_REGISTERED
     if FONTS_REGISTERED:
         return FONT_REGULAR, FONT_BOLD
 
     candidates = [
+        (
+            Path(reportlab.__file__).resolve().parent / "fonts" / "Vera.ttf",
+            Path(reportlab.__file__).resolve().parent / "fonts" / "VeraBd.ttf",
+        ),
         (
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
@@ -74,7 +90,7 @@ def build_kit_pdf(
 
     def draw_wrapped(text: str, current_x: int, current_y: int, font_name: str, font_size: int, line_height: int = 14) -> int:
         c.setFont(font_name, font_size)
-        lines = simpleSplit(str(text or ""), font_name, font_size, width - current_x * 2)
+        lines = simpleSplit(_pdf_safe_text(text), font_name, font_size, width - current_x * 2)
         for line in lines:
             c.drawString(current_x, current_y, line)
             current_y -= line_height
@@ -82,11 +98,11 @@ def build_kit_pdf(
         return current_y
 
     c.setFont(font_bold, 16)
-    c.drawString(x, y, template.get("title") or f"{kit_name} - Raport")
+    c.drawString(x, y, _pdf_safe_text(template.get("title") or f"{kit_name} - Raport"))
     y -= 24
 
     c.setFont(font_regular, 11)
-    c.drawString(x, y, f"Client: {client_name}")
+    c.drawString(x, y, _pdf_safe_text(f"Client: {client_name}"))
     y -= 18
     intro = template.get("intro_text") or ""
     y = draw_wrapped(intro, x, y, font_regular, 11, 16)
@@ -97,7 +113,7 @@ def build_kit_pdf(
     y -= 24
 
     c.setFont(font_bold, 12)
-    c.drawString(x, y, "Raspunsuri")
+    c.drawString(x, y, _pdf_safe_text("Raspunsuri"))
     y -= 18
     c.setFont(font_regular, 10)
     for key, value in submission.items():
@@ -119,23 +135,23 @@ def build_kit_pdf(
 
     y -= 10
     c.setFont(font_bold, 12)
-    c.drawString(x, y, "Rezultat")
+    c.drawString(x, y, _pdf_safe_text("Rezultat"))
     y -= 18
     c.setFont(font_regular, 10)
-    c.drawString(x, y, f"Scor risc: {result.get('risk_score', 0)}")
+    c.drawString(x, y, _pdf_safe_text(f"Scor risc: {result.get('risk_score', 0)}"))
     y -= 14
-    c.drawString(x, y, f"Nivel risc: {result.get('risk_level', 'LOW')}")
+    c.drawString(x, y, _pdf_safe_text(f"Nivel risc: {result.get('risk_level', 'LOW')}"))
     y -= 14
-    c.drawString(x, y, f"Nivel implicare: {result.get('engagement_level', 'standard')}")
+    c.drawString(x, y, _pdf_safe_text(f"Nivel implicare: {result.get('engagement_level', 'standard')}"))
     y -= 14
-    c.drawString(x, y, f"Ajustare onorariu: +{result.get('tariff_adjustment_pct', 0)}%")
+    c.drawString(x, y, _pdf_safe_text(f"Ajustare onorariu: +{result.get('tariff_adjustment_pct', 0)}%"))
     y -= 14
 
     active_risks = result.get("active_risks_json") or []
     flags = result.get("risk_flags_json") or []
     if active_risks:
         c.setFont(font_bold, 10)
-        c.drawString(x, y, "Riscuri identificate:")
+        c.drawString(x, y, _pdf_safe_text("Riscuri identificate:"))
         y -= 14
         c.setFont(font_regular, 10)
         for ar in active_risks:
@@ -144,7 +160,7 @@ def build_kit_pdf(
             y = new_page_if_needed(y)
     elif flags:
         c.setFont(font_bold, 10)
-        c.drawString(x, y, "Flag-uri identificate:")
+        c.drawString(x, y, _pdf_safe_text("Flag-uri identificate:"))
         y -= 14
         c.setFont(font_regular, 10)
         for flag in flags:
@@ -155,7 +171,7 @@ def build_kit_pdf(
     if matrix:
         y -= 6
         c.setFont(font_bold, 11)
-        c.drawString(x, y, "Matrice responsabilitati")
+        c.drawString(x, y, _pdf_safe_text("Matrice responsabilitati"))
         y -= 16
         c.setFont(font_regular, 10)
         for row in matrix:
@@ -169,12 +185,12 @@ def build_kit_pdf(
     c.line(x, y, width - x, y)
     y -= 28
     c.setFont(font_bold, 11)
-    c.drawString(x, y, template.get("signature_block_text") or "Semnatura administrator / reprezentant legal")
+    c.drawString(x, y, _pdf_safe_text(template.get("signature_block_text") or "Semnatura administrator / reprezentant legal"))
     y -= 18
     c.setFont(font_regular, 10)
-    c.drawString(x, y, "Nume: __________________________________________")
+    c.drawString(x, y, _pdf_safe_text("Nume: __________________________________________"))
     y -= 18
-    c.drawString(x, y, "Data: ____________________   Semnatura: ____________________")
+    c.drawString(x, y, _pdf_safe_text("Data: ____________________   Semnatura: ____________________"))
     c.save()
     buffer.seek(0)
     return buffer.getvalue()

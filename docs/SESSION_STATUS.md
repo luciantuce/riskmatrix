@@ -1,13 +1,13 @@
 # Session Status
 
-Last updated: 2026-05-01 14:05 (Europe/Bucharest)
+Last updated: 2026-05-01 14:15 (Europe/Bucharest)
 
 ## Now
-- Lucrez pe fix de calitate PDF (diacritice RO și wrapping text).
-- Frontend/Backend rămân live; issue-ul curent este strict pe render PDF.
+- Fix PDF v2 aplicat local: font TTF din reportlab + fallback text `ș/ț` -> `ş/ţ`.
+- Urmează push + redeploy backend pentru verificare live.
 
 ## Last Done
-- `uncommitted` Fix PDF typography: Unicode font fallback + text wrapping in `backend/app/pdf.py`.
+- `uncommitted` Fix PDF typography v2: bundled TTF (`Vera`) + safe Romanian glyph fallback + wrapping in `backend/app/pdf.py`.
 - `c5f9e2b` Add consistent loading/success feedback for key actions.
 - `8c2b13a` Add save feedback states for client profile.
 - `e60be2e` Use checkbox UI for multi-choice profile fields.
@@ -26,14 +26,14 @@ Last updated: 2026-05-01 14:05 (Europe/Bucharest)
   - `34680d4a-f456-4174-b93b-4b84a6666e56` SUCCESS (2026-05-01 13:04:14 +03:00)
 
 ## Current Symptom
-- Open: exported PDF shows black squares instead of Romanian diacritics and poor line layout.
-- In progress: backend patch applied locally, pending push + Railway deploy verification.
+- Open: live PDF încă arată pătrate negre la diacritice.
+- In progress: patch v2 pregătit local, pending push + Railway deploy verification.
 
 ## Next Steps
-1. Commit and push PDF render fix to `main`.
+1. Commit and push PDF render fix v2 to `main`.
 2. Monitor Railway backend deploy (`riskmatrixai-be`) until SUCCESS.
 3. Re-generate one PDF in app and verify:
-   - diacritice (`ș`, `ț`, `ă`, `î`, `â`) render corect
+   - diacritice (`ș`, `ț`, `ă`, `î`, `â`) render corect (sau fallback `ş/ţ` fără pătrate)
    - întrebări/răspunsuri lungi se împachetează pe linii fără overflow.
 4. Continue cu Stripe webhook sync după confirmarea PDF.
 
