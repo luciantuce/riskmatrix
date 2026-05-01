@@ -29,6 +29,8 @@ from app.models import (
     KitSection,
     KitSubmission,
     KitVersion,
+    Product,
+    Subscription,
     User,
 )
 from app.webhooks.clerk import router as clerk_router
