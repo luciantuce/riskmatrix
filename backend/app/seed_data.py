@@ -14,6 +14,7 @@ from app.models import (
     KitRule,
     KitSection,
     KitVersion,
+    Product,
     QuestionRiskMap,
     Risk,
 )
