@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useAuth } from "@clerk/nextjs"
 
@@ -69,11 +69,6 @@ export default function ClientDetailPage() {
     load()
   }, [clientId])
 
-  const profileQuestionCount = useMemo(
-    () => profileDefinition.reduce((acc, section) => acc + section.questions.length, 0),
-    [profileDefinition]
-  )
-
   const saveProfile = async () => {
     try {
       setIsSavingProfile(true)
@@ -107,7 +102,6 @@ export default function ClientDetailPage() {
         <div className="section-title">
           <div>
             <h2>Profil general comun</h2>
-            <p className="muted">{profileQuestionCount} intrebari comune, completate o singura data.</p>
             {saveNotice && <p className="muted" style={{ margin: "6px 0 0 0" }}>{saveNotice}</p>}
           </div>
           <button onClick={saveProfile} disabled={isSavingProfile}>

@@ -1,12 +1,15 @@
 # Session Status
 
-Last updated: 2026-05-01 13:08 (Europe/Bucharest)
+Last updated: 2026-05-01 13:31 (Europe/Bucharest)
 
 ## Now
 - Frontend latest deployment is live.
 - Backend latest deployment is live and healthy after startup fixes.
 
 ## Last Done
+- `c5f9e2b` Add consistent loading/success feedback for key actions.
+- `8c2b13a` Add save feedback states for client profile.
+- `e60be2e` Use checkbox UI for multi-choice profile fields.
 - `2383b82` Fix backend runtime imports for product/subscription models.
 - `d6203e0` Fix startup seed NameError by importing Product model.
 - `746f941` Fix backend startup import for ProductSummaryResponse.
@@ -23,6 +26,7 @@ Last updated: 2026-05-01 13:08 (Europe/Bucharest)
 
 ## Current Symptom
 - Resolved: `GET /api/products` now returns product list (no longer 404/500).
+- UX tweak requested: remove helper text `N intrebari comune...` from client profile header.
 
 ## Next Steps
 1. Re-test subscriptions gating flow end-to-end:
