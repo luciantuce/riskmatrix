@@ -44,8 +44,11 @@ from app.schemas import (
     AdminKitResponse,
     AdminKitUpdatePayload,
     AnswersPayload,
+    ClientKitSummaryResponse,
     ClientCreate,
+    ClientListItemResponse,
     ClientResponse,
+    ClientSummaryResponse,
     KitDefinitionResponse,
     KitOption,
     KitQuestionResponse,
@@ -321,6 +324,67 @@ def _latest_result(db: Session, client_id: int, kit_id: int) -> KitResult | None
     )
 
 
+_RISK_LEVEL_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+
+
+def _build_client_kit_summaries(db: Session, user: User, client_id: int) -> list[ClientKitSummaryResponse]:
+    kits = db.query(Kit).filter(Kit.active == True).order_by(Kit.display_order.asc()).all()
+    visible_kits = kits if _has_full_kit_access(user) else [k for k in kits if _user_has_kit_access(db, user.id, k.id)]
+    summaries: list[ClientKitSummaryResponse] = []
+
+    for kit in visible_kits:
+        submission = _latest_submission(db, client_id, kit.id)
+        result = _latest_result(db, client_id, kit.id)
+        if result:
+            status = "completed"
+            updated_at = result.calculated_at
+        elif submission:
+            status = "in_progress"
+            updated_at = submission.updated_at
+        else:
+            status = "not_started"
+            updated_at = None
+
+        summaries.append(
+            ClientKitSummaryResponse(
+                kit_id=kit.id,
+                kit_code=kit.code,
+                kit_name=kit.name,
+                status=status,
+                risk_level=result.risk_level if result else None,
+                risk_score=result.risk_score if result else None,
+                tariff_adjustment_pct=result.tariff_adjustment_pct if result else None,
+                updated_at=updated_at,
+            )
+        )
+    return summaries
+
+
+def _build_client_summary(kit_summaries: list[ClientKitSummaryResponse]) -> ClientSummaryResponse:
+    completed = [s for s in kit_summaries if s.status == "completed"]
+    in_progress = [s for s in kit_summaries if s.status == "in_progress"]
+    not_started = [s for s in kit_summaries if s.status == "not_started"]
+
+    highest: str | None = None
+    latest_score: float | None = None
+    latest_updated: datetime | None = None
+    for row in completed:
+        if row.risk_level and (highest is None or _RISK_LEVEL_RANK.get(row.risk_level, 0) > _RISK_LEVEL_RANK.get(highest, 0)):
+            highest = row.risk_level
+        if row.updated_at and (latest_updated is None or row.updated_at > latest_updated):
+            latest_updated = row.updated_at
+            latest_score = row.risk_score
+
+    return ClientSummaryResponse(
+        completed_kits=len(completed),
+        in_progress_kits=len(in_progress),
+        not_started_kits=len(not_started),
+        highest_risk_level=highest,
+        latest_risk_score=latest_score,
+        latest_updated_at=latest_updated,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public routes
 # ---------------------------------------------------------------------------
@@ -356,17 +420,31 @@ def list_products(
     return db.query(Product).filter(Product.active == True).order_by(Product.display_order.asc()).all()
 
 
-@app.get("/api/clients", response_model=list[ClientResponse])
+@app.get("/api/clients", response_model=list[ClientListItemResponse])
 def list_clients(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return (
+    clients = (
         db.query(Client)
         .filter(Client.user_id == user.id, Client.deleted_at.is_(None))
         .order_by(Client.created_at.desc())
         .all()
     )
+    rows: list[ClientListItemResponse] = []
+    for client in clients:
+        kit_summaries = _build_client_kit_summaries(db, user, client.id)
+        rows.append(
+            ClientListItemResponse(
+                id=client.id,
+                name=client.name,
+                company_name=client.company_name,
+                notes=client.notes,
+                created_at=client.created_at,
+                summary=_build_client_summary(kit_summaries),
+            )
+        )
+    return rows
 
 
 @app.post("/api/clients", response_model=ClientResponse)
@@ -396,6 +474,27 @@ def get_client(
     db: Session = Depends(get_db),
 ):
     return _get_client(db, client_id, user)
+
+
+@app.get("/api/clients/{client_id}/summary", response_model=ClientSummaryResponse)
+def get_client_summary(
+    client_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
+    kit_summaries = _build_client_kit_summaries(db, user, client_id)
+    return _build_client_summary(kit_summaries)
+
+
+@app.get("/api/clients/{client_id}/kits/summary", response_model=list[ClientKitSummaryResponse])
+def get_client_kits_summary(
+    client_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_client(db, client_id, user)
+    return _build_client_kit_summaries(db, user, client_id)
 
 
 @app.get("/api/clients/{client_id}/profile")

@@ -1,13 +1,18 @@
 # Session Status
 
-Last updated: 2026-05-01 14:20 (Europe/Bucharest)
+Last updated: 2026-05-01 14:33 (Europe/Bucharest)
 
 ## Now
-- Fix PDF v3 aplicat local: fonturi Noto Sans incluse în repo pentru diacritice RO reale.
-- Urmează push + redeploy backend pentru verificare live.
+- Implementat summary client multi-kit (backend + frontend), gata de deploy.
+- Include status agregat pe client și status/risc per kit în pagina clientului.
 
 ## Last Done
-- `uncommitted` Fix PDF typography v3: bundled `NotoSans-Regular/Bold.ttf` + render direct `ăâîșț` in `backend/app/pdf.py`.
+- `a2b0348` Bundle Noto Sans fonts for correct Romanian diacritics in PDFs.
+- `uncommitted` Add client summaries:
+  - `GET /api/clients` returns per-client summary
+  - `GET /api/clients/{id}/summary`
+  - `GET /api/clients/{id}/kits/summary`
+  - UI badges/cards updated in clients list and client detail page
 - `c5f9e2b` Add consistent loading/success feedback for key actions.
 - `8c2b13a` Add save feedback states for client profile.
 - `e60be2e` Use checkbox UI for multi-choice profile fields.
@@ -26,15 +31,17 @@ Last updated: 2026-05-01 14:20 (Europe/Bucharest)
   - `34680d4a-f456-4174-b93b-4b84a6666e56` SUCCESS (2026-05-01 13:04:14 +03:00)
 
 ## Current Symptom
-- Open: live PDF încă arată pătrate negre la diacritice.
-- In progress: patch v2 pregătit local, pending push + Railway deploy verification.
+- Open request implemented: better post-questionnaire summaries for clients with multiple kits.
+- Pending: push + Railway deploy + visual validation in production.
 
 ## Next Steps
-1. Commit and push PDF render fix v2 to `main`.
-2. Monitor Railway backend deploy (`riskmatrixai-be`) until SUCCESS.
-3. Re-generate one PDF in app and verify:
-   - diacritice (`ș`, `ț`, `ă`, `î`, `â`) render corect (sau fallback `ş/ţ` fără pătrate)
-   - întrebări/răspunsuri lungi se împachetează pe linii fără overflow.
+1. Commit and push client summary feature to `main`.
+2. Monitor Railway backend + frontend deploys until SUCCESS.
+3. Verify flows:
+   - clients list shows summary chips per client
+   - client detail top card shows aggregated summary
+   - each kit card shows status and latest risk
+4. Re-check PDF diacritics after this deploy wave.
 4. Continue cu Stripe webhook sync după confirmarea PDF.
 
 ## How To Resume (copy/paste in a new chat)

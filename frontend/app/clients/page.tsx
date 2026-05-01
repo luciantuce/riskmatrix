@@ -11,6 +11,14 @@ type Client = {
   name: string
   company_name: string | null
   notes: string | null
+  summary: {
+    completed_kits: number
+    in_progress_kits: number
+    not_started_kits: number
+    highest_risk_level: string | null
+    latest_risk_score: number | null
+    latest_updated_at: string | null
+  }
 }
 
 export default function ClientsPage() {
@@ -22,6 +30,13 @@ export default function ClientsPage() {
   const [error, setError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const [notice, setNotice] = useState("")
+  const riskBadgeClass = (level?: string | null) => {
+    if (!level) return "pill"
+    if (level === "LOW") return "status-badge status-low"
+    if (level === "MEDIUM") return "status-badge status-medium"
+    if (level === "HIGH") return "status-badge status-high"
+    return "status-badge status-critical"
+  }
 
   const load = async () => {
     try {
@@ -117,6 +132,16 @@ export default function ClientsPage() {
               <span className="pill">client</span>
             </div>
             <span className="muted">{client.company_name || "Fara denumire companie"}</span>
+            <div className="row" style={{ gap: 8 }}>
+              <span className="pill">{client.summary.completed_kits} complete</span>
+              <span className="pill">{client.summary.in_progress_kits} in lucru</span>
+              <span className="pill">{client.summary.not_started_kits} neincepute</span>
+              {client.summary.highest_risk_level && (
+                <span className={riskBadgeClass(client.summary.highest_risk_level)}>
+                  Risc max: {client.summary.highest_risk_level}
+                </span>
+              )}
+            </div>
           </Link>
         ))}
       </div>

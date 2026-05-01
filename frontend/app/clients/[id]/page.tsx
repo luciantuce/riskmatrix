@@ -35,6 +35,26 @@ type Client = {
   company_name: string | null
 }
 
+type ClientSummary = {
+  completed_kits: number
+  in_progress_kits: number
+  not_started_kits: number
+  highest_risk_level: string | null
+  latest_risk_score: number | null
+  latest_updated_at: string | null
+}
+
+type ClientKitSummary = {
+  kit_id: number
+  kit_code: string
+  kit_name: string
+  status: "completed" | "in_progress" | "not_started"
+  risk_level: string | null
+  risk_score: number | null
+  tariff_adjustment_pct: number | null
+  updated_at: string | null
+}
+
 export default function ClientDetailPage() {
   const params = useParams()
   const clientId = params.id as string
@@ -44,6 +64,8 @@ export default function ClientDetailPage() {
   const [profileDefinition, setProfileDefinition] = useState<ProfileDefinitionSection[]>([])
   const [profileAnswers, setProfileAnswers] = useState<Record<string, unknown>>({})
   const [kits, setKits] = useState<Kit[]>([])
+  const [clientSummary, setClientSummary] = useState<ClientSummary | null>(null)
+  const [kitSummaries, setKitSummaries] = useState<ClientKitSummary[]>([])
   const [error, setError] = useState("")
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [saveNotice, setSaveNotice] = useState("")
@@ -51,15 +73,19 @@ export default function ClientDetailPage() {
   const load = async () => {
     try {
       const token = await getToken()
-      const [clientRes, profileRes, kitsRes] = await Promise.all([
+      const [clientRes, profileRes, kitsRes, summaryRes, kitSummaryRes] = await Promise.all([
         apiGet<Client>(`/api/clients/${clientId}`, token ?? undefined),
         apiGet<{ definition: ProfileDefinitionSection[]; answers: Record<string, unknown> }>(`/api/clients/${clientId}/profile`, token ?? undefined),
         apiGet<Kit[]>("/api/kits", token ?? undefined),
+        apiGet<ClientSummary>(`/api/clients/${clientId}/summary`, token ?? undefined),
+        apiGet<ClientKitSummary[]>(`/api/clients/${clientId}/kits/summary`, token ?? undefined),
       ])
       setClient(clientRes)
       setProfileDefinition(profileRes.definition)
       setProfileAnswers(profileRes.answers || {})
       setKits(kitsRes)
+      setClientSummary(summaryRes)
+      setKitSummaries(kitSummaryRes)
     } catch (e) {
       setError(String(e))
     }
@@ -87,6 +113,22 @@ export default function ClientDetailPage() {
     }
   }
 
+  const riskBadgeClass = (level?: string | null) => {
+    if (!level) return "pill"
+    if (level === "LOW") return "status-badge status-low"
+    if (level === "MEDIUM") return "status-badge status-medium"
+    if (level === "HIGH") return "status-badge status-high"
+    return "status-badge status-critical"
+  }
+
+  const statusLabel = (status: ClientKitSummary["status"]) => {
+    if (status === "completed") return "completat"
+    if (status === "in_progress") return "in lucru"
+    return "neinceput"
+  }
+
+  const summaryByKitCode = new Map(kitSummaries.map((row) => [row.kit_code, row]))
+
   return (
     <main className="stack">
       <Link href="/clients" className="muted">
@@ -96,6 +138,21 @@ export default function ClientDetailPage() {
       <div className="card">
         <h1>{client?.name || "Client"}</h1>
         <p className="muted">{client?.company_name || "Profil nou"}</p>
+        {clientSummary && (
+          <div className="row" style={{ marginTop: 8 }}>
+            <span className="pill">{clientSummary.completed_kits} kituri completate</span>
+            <span className="pill">{clientSummary.in_progress_kits} in lucru</span>
+            <span className="pill">{clientSummary.not_started_kits} neincepute</span>
+            {clientSummary.highest_risk_level && (
+              <span className={riskBadgeClass(clientSummary.highest_risk_level)}>
+                Risc maxim: {clientSummary.highest_risk_level}
+              </span>
+            )}
+            {clientSummary.latest_risk_score != null && (
+              <span className="pill">Ultimul scor: {clientSummary.latest_risk_score}</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card stack">
@@ -175,6 +232,19 @@ export default function ClientDetailPage() {
         <div className="grid grid-2">
           {kits.map((kit) => (
             <div key={kit.code} className="card stack">
+              {summaryByKitCode.get(kit.code) && (
+                <div className="row" style={{ gap: 8 }}>
+                  <span className="pill">{statusLabel(summaryByKitCode.get(kit.code)!.status)}</span>
+                  {summaryByKitCode.get(kit.code)!.risk_level && (
+                    <span className={riskBadgeClass(summaryByKitCode.get(kit.code)!.risk_level)}>
+                      {summaryByKitCode.get(kit.code)!.risk_level}
+                    </span>
+                  )}
+                  {summaryByKitCode.get(kit.code)!.risk_score != null && (
+                    <span className="pill">Scor {summaryByKitCode.get(kit.code)!.risk_score}</span>
+                  )}
+                </div>
+              )}
               <Link href={`/clients/${clientId}/kits/${kit.code}`} style={{ textDecoration: "none", color: "inherit" }}>
                 <div className="section-title" style={{ marginBottom: 0 }}>
                   <strong>{kit.name}</strong>

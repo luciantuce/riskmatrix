@@ -21,6 +21,30 @@ class ClientResponse(BaseModel):
         from_attributes = True
 
 
+class ClientSummaryResponse(BaseModel):
+    completed_kits: int
+    in_progress_kits: int
+    not_started_kits: int
+    highest_risk_level: str | None = None
+    latest_risk_score: float | None = None
+    latest_updated_at: datetime | None = None
+
+
+class ClientListItemResponse(ClientResponse):
+    summary: ClientSummaryResponse
+
+
+class ClientKitSummaryResponse(BaseModel):
+    kit_id: int
+    kit_code: str
+    kit_name: str
+    status: str
+    risk_level: str | None = None
+    risk_score: float | None = None
+    tariff_adjustment_pct: float | None = None
+    updated_at: datetime | None = None
+
+
 class AnswersPayload(BaseModel):
     answers: dict[str, Any]
 

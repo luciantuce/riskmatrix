@@ -107,6 +107,12 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 - `ClientProfile` — date generale de firmă
 - `KitSubmission` — răspunsuri pentru o pereche `(client, kit)`
 - `KitResult` — output calculat al unui submission
+  - UI decision (2026-05-01): rezultatele sunt agregate în summary la nivel de
+    client, inclusiv pentru scenariul cu mai multe kituri:
+    - total kituri `completed` / `in_progress` / `not_started`
+    - `highest_risk_level` dintre kiturile completate
+    - `latest_risk_score` + `latest_updated_at` pentru ultimul rezultat
+    - summary per kit (status + risc) în pagina clientului
 
 ### Nou (Sprint 1 + 2)
 
