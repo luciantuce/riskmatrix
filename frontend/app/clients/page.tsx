@@ -16,7 +16,9 @@ type Client = {
     in_progress_kits: number
     not_started_kits: number
     highest_risk_level: string | null
+    highest_risk_kit_name: string | null
     latest_risk_score: number | null
+    latest_risk_kit_name: string | null
     latest_updated_at: string | null
   }
 }
@@ -139,8 +141,10 @@ export default function ClientsPage() {
               {client.summary.highest_risk_level && (
                 <span className={riskBadgeClass(client.summary.highest_risk_level)}>
                   Risc max: {client.summary.highest_risk_level}
+                  {client.summary.highest_risk_kit_name ? ` (${client.summary.highest_risk_kit_name})` : ""}
                 </span>
               )}
+              {client.summary.latest_risk_kit_name && <span className="pill">Ultimul kit: {client.summary.latest_risk_kit_name}</span>}
             </div>
           </Link>
         ))}

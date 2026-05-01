@@ -40,7 +40,9 @@ type ClientSummary = {
   in_progress_kits: number
   not_started_kits: number
   highest_risk_level: string | null
+  highest_risk_kit_name: string | null
   latest_risk_score: number | null
+  latest_risk_kit_name: string | null
   latest_updated_at: string | null
 }
 
@@ -146,10 +148,14 @@ export default function ClientDetailPage() {
             {clientSummary.highest_risk_level && (
               <span className={riskBadgeClass(clientSummary.highest_risk_level)}>
                 Risc maxim: {clientSummary.highest_risk_level}
+                {clientSummary.highest_risk_kit_name ? ` (${clientSummary.highest_risk_kit_name})` : ""}
               </span>
             )}
             {clientSummary.latest_risk_score != null && (
-              <span className="pill">Ultimul scor: {clientSummary.latest_risk_score}</span>
+              <span className="pill">
+                Ultimul scor: {clientSummary.latest_risk_score}
+                {clientSummary.latest_risk_kit_name ? ` (${clientSummary.latest_risk_kit_name})` : ""}
+              </span>
             )}
           </div>
         )}

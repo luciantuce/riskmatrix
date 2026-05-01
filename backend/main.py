@@ -366,21 +366,27 @@ def _build_client_summary(kit_summaries: list[ClientKitSummaryResponse]) -> Clie
     not_started = [s for s in kit_summaries if s.status == "not_started"]
 
     highest: str | None = None
+    highest_kit_name: str | None = None
     latest_score: float | None = None
+    latest_kit_name: str | None = None
     latest_updated: datetime | None = None
     for row in completed:
         if row.risk_level and (highest is None or _RISK_LEVEL_RANK.get(row.risk_level, 0) > _RISK_LEVEL_RANK.get(highest, 0)):
             highest = row.risk_level
+            highest_kit_name = row.kit_name
         if row.updated_at and (latest_updated is None or row.updated_at > latest_updated):
             latest_updated = row.updated_at
             latest_score = row.risk_score
+            latest_kit_name = row.kit_name
 
     return ClientSummaryResponse(
         completed_kits=len(completed),
         in_progress_kits=len(in_progress),
         not_started_kits=len(not_started),
         highest_risk_level=highest,
+        highest_risk_kit_name=highest_kit_name,
         latest_risk_score=latest_score,
+        latest_risk_kit_name=latest_kit_name,
         latest_updated_at=latest_updated,
     )
 

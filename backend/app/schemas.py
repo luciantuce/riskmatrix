@@ -26,7 +26,9 @@ class ClientSummaryResponse(BaseModel):
     in_progress_kits: int
     not_started_kits: int
     highest_risk_level: str | None = None
+    highest_risk_kit_name: str | None = None
     latest_risk_score: float | None = None
+    latest_risk_kit_name: str | None = None
     latest_updated_at: datetime | None = None
 
 
