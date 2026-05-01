@@ -99,10 +99,10 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
   arborele de definiție al unui kit
 - `KitDocumentTemplate` — template PDF per kit version
   - Decizie implementată (2026-05-01): randarea PDF folosește font TTF inclus
-    în pachetul `reportlab` (`Vera.ttf`/`VeraBd.ttf`), fără dependență de
-    fonturile sistemului Railway. Pentru compatibilitate maximă, caracterele
-    `ș/ț` sunt convertite la variantele tipografice `ş/ţ` dacă glyph-urile
-    lipsesc. Layout-ul aplică wrap automat pe rânduri lungi.
+    în repo (`NotoSans-Regular.ttf`, `NotoSans-Bold.ttf`) din
+    `backend/app/assets/fonts`, astfel diacriticele RO (`ăâîșț`) sunt
+    randate corect și independent de OS-ul Railway. Layout-ul aplică wrap
+    automat pe rânduri lungi.
 - `Client` — o firmă evaluată (devine user-scoped)
 - `ClientProfile` — date generale de firmă
 - `KitSubmission` — răspunsuri pentru o pereche `(client, kit)`

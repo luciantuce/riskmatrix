@@ -24,14 +24,7 @@ def _humanize_flag(value: str) -> str:
 
 
 def _pdf_safe_text(value: object) -> str:
-    text = str(value or "")
-    # Fallback for fonts that miss Romanian comma-below glyphs.
-    return (
-        text.replace("Ș", "Ş")
-        .replace("ș", "ş")
-        .replace("Ț", "Ţ")
-        .replace("ț", "ţ")
-    )
+    return str(value or "")
 
 
 def _register_fonts() -> tuple[str, str]:
@@ -40,6 +33,10 @@ def _register_fonts() -> tuple[str, str]:
         return FONT_REGULAR, FONT_BOLD
 
     candidates = [
+        (
+            Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSans-Regular.ttf",
+            Path(__file__).resolve().parent / "assets" / "fonts" / "NotoSans-Bold.ttf",
+        ),
         (
             Path(reportlab.__file__).resolve().parent / "fonts" / "Vera.ttf",
             Path(reportlab.__file__).resolve().parent / "fonts" / "VeraBd.ttf",

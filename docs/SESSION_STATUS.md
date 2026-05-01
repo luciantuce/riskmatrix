@@ -1,13 +1,13 @@
 # Session Status
 
-Last updated: 2026-05-01 14:15 (Europe/Bucharest)
+Last updated: 2026-05-01 14:20 (Europe/Bucharest)
 
 ## Now
-- Fix PDF v2 aplicat local: font TTF din reportlab + fallback text `ș/ț` -> `ş/ţ`.
+- Fix PDF v3 aplicat local: fonturi Noto Sans incluse în repo pentru diacritice RO reale.
 - Urmează push + redeploy backend pentru verificare live.
 
 ## Last Done
-- `uncommitted` Fix PDF typography v2: bundled TTF (`Vera`) + safe Romanian glyph fallback + wrapping in `backend/app/pdf.py`.
+- `uncommitted` Fix PDF typography v3: bundled `NotoSans-Regular/Bold.ttf` + render direct `ăâîșț` in `backend/app/pdf.py`.
 - `c5f9e2b` Add consistent loading/success feedback for key actions.
 - `8c2b13a` Add save feedback states for client profile.
 - `e60be2e` Use checkbox UI for multi-choice profile fields.
