@@ -98,6 +98,9 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 - `KitVersion`, `KitSection`, `KitQuestion`, `KitQuestionOption`, `KitRule` —
   arborele de definiție al unui kit
 - `KitDocumentTemplate` — template PDF per kit version
+  - Decizie implementată (2026-05-01): randarea PDF folosește fonturi Unicode
+    (fallback DejaVuSans/Arial) pentru diacritice RO și wrap automat pe rânduri
+    lungi, ca să evităm caractere corupte și overflow vizual.
 - `Client` — o firmă evaluată (devine user-scoped)
 - `ClientProfile` — date generale de firmă
 - `KitSubmission` — răspunsuri pentru o pereche `(client, kit)`

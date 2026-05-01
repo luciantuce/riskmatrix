@@ -1,8 +1,17 @@
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import simpleSplit
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+
+FONT_REGULAR = "RiskMatrix-Regular"
+FONT_BOLD = "RiskMatrix-Bold"
+FONTS_REGISTERED = False
 
 
 def _humanize_key(value: str) -> str:
@@ -13,6 +22,34 @@ def _humanize_flag(value: str) -> str:
     return _humanize_key(value)
 
 
+def _register_fonts() -> tuple[str, str]:
+    global FONTS_REGISTERED
+    if FONTS_REGISTERED:
+        return FONT_REGULAR, FONT_BOLD
+
+    candidates = [
+        (
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ),
+        (
+            Path("/Library/Fonts/Arial Unicode.ttf"),
+            Path("/Library/Fonts/Arial Bold.ttf"),
+        ),
+        (
+            Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+        ),
+    ]
+    for regular, bold in candidates:
+        if regular.exists() and bold.exists():
+            pdfmetrics.registerFont(TTFont(FONT_REGULAR, str(regular)))
+            pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
+            FONTS_REGISTERED = True
+            return FONT_REGULAR, FONT_BOLD
+    return "Helvetica", "Helvetica-Bold"
+
+
 def build_kit_pdf(
     client_name: str,
     kit_name: str,
@@ -21,6 +58,7 @@ def build_kit_pdf(
     template: dict,
     question_labels: dict[str, str] | None = None,
 ) -> bytes:
+    font_regular, font_bold = _register_fonts()
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -34,25 +72,34 @@ def build_kit_pdf(
             return height - 50
         return current_y
 
-    c.setFont("Helvetica-Bold", 16)
+    def draw_wrapped(text: str, current_x: int, current_y: int, font_name: str, font_size: int, line_height: int = 14) -> int:
+        c.setFont(font_name, font_size)
+        lines = simpleSplit(str(text or ""), font_name, font_size, width - current_x * 2)
+        for line in lines:
+            c.drawString(current_x, current_y, line)
+            current_y -= line_height
+            current_y = new_page_if_needed(current_y)
+        return current_y
+
+    c.setFont(font_bold, 16)
     c.drawString(x, y, template.get("title") or f"{kit_name} - Raport")
     y -= 24
 
-    c.setFont("Helvetica", 11)
+    c.setFont(font_regular, 11)
     c.drawString(x, y, f"Client: {client_name}")
     y -= 18
     intro = template.get("intro_text") or ""
-    c.drawString(x, y, intro)
-    y -= 26
+    y = draw_wrapped(intro, x, y, font_regular, 11, 16)
+    y -= 10
 
     c.setStrokeColor(colors.HexColor("#dbe4f0"))
     c.line(x, y, width - x, y)
     y -= 24
 
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont(font_bold, 12)
     c.drawString(x, y, "Raspunsuri")
     y -= 18
-    c.setFont("Helvetica", 10)
+    c.setFont(font_regular, 10)
     for key, value in submission.items():
         if value is None:
             continue
@@ -65,19 +112,16 @@ def build_kit_pdf(
             display_value = ", ".join(str(v) for v in value)
         else:
             display_value = str(value)
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(x, y, f"{label}:")
-        y -= 14
-        c.setFont("Helvetica", 10)
-        c.drawString(x + 10, y, display_value)
-        y -= 18
+        y = draw_wrapped(f"{label}:", x, y, font_bold, 10, 14)
+        y = draw_wrapped(display_value, x + 10, y, font_regular, 10, 14)
+        y -= 4
         y = new_page_if_needed(y)
 
     y -= 10
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont(font_bold, 12)
     c.drawString(x, y, "Rezultat")
     y -= 18
-    c.setFont("Helvetica", 10)
+    c.setFont(font_regular, 10)
     c.drawString(x, y, f"Scor risc: {result.get('risk_score', 0)}")
     y -= 14
     c.drawString(x, y, f"Nivel risc: {result.get('risk_level', 'LOW')}")
@@ -90,49 +134,44 @@ def build_kit_pdf(
     active_risks = result.get("active_risks_json") or []
     flags = result.get("risk_flags_json") or []
     if active_risks:
-        c.setFont("Helvetica-Bold", 10)
+        c.setFont(font_bold, 10)
         c.drawString(x, y, "Riscuri identificate:")
         y -= 14
-        c.setFont("Helvetica", 10)
+        c.setFont(font_regular, 10)
         for ar in active_risks:
             name = ar.get("name") or ar.get("code", "")
-            c.drawString(x + 10, y, f"- {name}")
-            y -= 14
+            y = draw_wrapped(f"- {name}", x + 10, y, font_regular, 10, 14)
             y = new_page_if_needed(y)
     elif flags:
-        c.setFont("Helvetica-Bold", 10)
+        c.setFont(font_bold, 10)
         c.drawString(x, y, "Flag-uri identificate:")
         y -= 14
-        c.setFont("Helvetica", 10)
+        c.setFont(font_regular, 10)
         for flag in flags:
-            c.drawString(x + 10, y, f"- {_humanize_flag(flag)}")
-            y -= 14
+            y = draw_wrapped(f"- {_humanize_flag(flag)}", x + 10, y, font_regular, 10, 14)
             y = new_page_if_needed(y)
 
     matrix = result.get("responsibility_matrix_json") or []
     if matrix:
         y -= 6
-        c.setFont("Helvetica-Bold", 11)
+        c.setFont(font_bold, 11)
         c.drawString(x, y, "Matrice responsabilitati")
         y -= 16
-        c.setFont("Helvetica", 10)
+        c.setFont(font_regular, 10)
         for row in matrix:
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(x, y, row.get("area") or "Domeniu")
-            y -= 14
-            c.setFont("Helvetica", 10)
-            c.drawString(x + 10, y, f"Responsabil: {row.get('responsible_party')}")
-            y -= 18
+            y = draw_wrapped(row.get("area") or "Domeniu", x, y, font_bold, 10, 14)
+            y = draw_wrapped(f"Responsabil: {row.get('responsible_party')}", x + 10, y, font_regular, 10, 14)
+            y -= 4
             y = new_page_if_needed(y)
 
     y -= 18
     c.setStrokeColor(colors.HexColor("#dbe4f0"))
     c.line(x, y, width - x, y)
     y -= 28
-    c.setFont("Helvetica-Bold", 11)
+    c.setFont(font_bold, 11)
     c.drawString(x, y, template.get("signature_block_text") or "Semnatura administrator / reprezentant legal")
     y -= 18
-    c.setFont("Helvetica", 10)
+    c.setFont(font_regular, 10)
     c.drawString(x, y, "Nume: __________________________________________")
     y -= 18
     c.drawString(x, y, "Data: ____________________   Semnatura: ____________________")

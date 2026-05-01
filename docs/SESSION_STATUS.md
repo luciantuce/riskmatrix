@@ -1,12 +1,13 @@
 # Session Status
 
-Last updated: 2026-05-01 13:31 (Europe/Bucharest)
+Last updated: 2026-05-01 14:05 (Europe/Bucharest)
 
 ## Now
-- Frontend latest deployment is live.
-- Backend latest deployment is live and healthy after startup fixes.
+- Lucrez pe fix de calitate PDF (diacritice RO și wrapping text).
+- Frontend/Backend rămân live; issue-ul curent este strict pe render PDF.
 
 ## Last Done
+- `uncommitted` Fix PDF typography: Unicode font fallback + text wrapping in `backend/app/pdf.py`.
 - `c5f9e2b` Add consistent loading/success feedback for key actions.
 - `8c2b13a` Add save feedback states for client profile.
 - `e60be2e` Use checkbox UI for multi-choice profile fields.
@@ -25,15 +26,16 @@ Last updated: 2026-05-01 13:31 (Europe/Bucharest)
   - `34680d4a-f456-4174-b93b-4b84a6666e56` SUCCESS (2026-05-01 13:04:14 +03:00)
 
 ## Current Symptom
-- Resolved: `GET /api/products` now returns product list (no longer 404/500).
-- UX tweak requested: remove helper text `N intrebari comune...` from client profile header.
+- Open: exported PDF shows black squares instead of Romanian diacritics and poor line layout.
+- In progress: backend patch applied locally, pending push + Railway deploy verification.
 
 ## Next Steps
-1. Re-test subscriptions gating flow end-to-end:
-   - admin grants product to user
-   - client sees only purchased kits
-   - unauthorized kit endpoints return `402`.
-2. Add Stripe webhook sync to replace manual grant flow in admin.
+1. Commit and push PDF render fix to `main`.
+2. Monitor Railway backend deploy (`riskmatrixai-be`) until SUCCESS.
+3. Re-generate one PDF in app and verify:
+   - diacritice (`ș`, `ț`, `ă`, `î`, `â`) render corect
+   - întrebări/răspunsuri lungi se împachetează pe linii fără overflow.
+4. Continue cu Stripe webhook sync după confirmarea PDF.
 
 ## How To Resume (copy/paste in a new chat)
-`Continuam din /docs/SESSION_STATUS.md. Backend si frontend sunt pe SUCCESS; te rog valideaza flow-ul de subscriptions gating (grant din admin -> acces kituri) si implementeaza urmatorul pas Stripe webhook sync.`
+`Continuam din /docs/SESSION_STATUS.md. Te rog finalizeaza fixul PDF (unicode + wrapping), da push pe main, urmareste deploy-ul Railway la backend si confirma validarea cu un PDF nou generat.`
