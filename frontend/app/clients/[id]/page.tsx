@@ -45,6 +45,8 @@ export default function ClientDetailPage() {
   const [profileAnswers, setProfileAnswers] = useState<Record<string, unknown>>({})
   const [kits, setKits] = useState<Kit[]>([])
   const [error, setError] = useState("")
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [saveNotice, setSaveNotice] = useState("")
 
   const load = async () => {
     try {
@@ -73,8 +75,21 @@ export default function ClientDetailPage() {
   )
 
   const saveProfile = async () => {
-    const token = await getToken()
-    await apiSend(`/api/clients/${clientId}/profile`, "PUT", { answers: profileAnswers }, token ?? undefined)
+    try {
+      setIsSavingProfile(true)
+      setSaveNotice("")
+      const token = await getToken()
+      await apiSend(`/api/clients/${clientId}/profile`, "PUT", { answers: profileAnswers }, token ?? undefined)
+      setSaveNotice("Profil salvat.")
+      setTimeout(() => {
+        setSaveNotice((current) => (current === "Profil salvat." ? "" : current))
+      }, 2500)
+    } catch (e) {
+      setSaveNotice("Nu am putut salva profilul.")
+      setError(String(e))
+    } finally {
+      setIsSavingProfile(false)
+    }
   }
 
   return (
@@ -93,8 +108,11 @@ export default function ClientDetailPage() {
           <div>
             <h2>Profil general comun</h2>
             <p className="muted">{profileQuestionCount} intrebari comune, completate o singura data.</p>
+            {saveNotice && <p className="muted" style={{ margin: "6px 0 0 0" }}>{saveNotice}</p>}
           </div>
-          <button onClick={saveProfile}>Salveaza profil</button>
+          <button onClick={saveProfile} disabled={isSavingProfile}>
+            {isSavingProfile ? "Salvez..." : "Salveaza profil"}
+          </button>
         </div>
 
         {profileDefinition.map((section) => (
