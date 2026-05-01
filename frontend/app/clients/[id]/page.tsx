@@ -117,19 +117,32 @@ export default function ClientDetailPage() {
                       ))}
                     </select>
                   ) : question.type === "multi_choice" ? (
-                    <input
-                      value={Array.isArray(profileAnswers[question.key]) ? (profileAnswers[question.key] as string[]).join(", ") : ""}
-                      onChange={(e) =>
-                        setProfileAnswers((prev) => ({
-                          ...prev,
-                          [question.key]: e.target.value
-                            .split(",")
-                            .map((item) => item.trim())
-                            .filter(Boolean),
-                        }))
-                      }
-                      placeholder="separate prin virgula"
-                    />
+                    <div className="stack" style={{ gap: 8 }}>
+                      {(question.options || []).map((option) => {
+                        const selected = Array.isArray(profileAnswers[question.key])
+                          ? (profileAnswers[question.key] as string[]).includes(option)
+                          : false
+                        return (
+                          <label key={option} style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 500, marginBottom: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={(e) => {
+                                const current = Array.isArray(profileAnswers[question.key])
+                                  ? ([...(profileAnswers[question.key] as string[])] as string[])
+                                  : []
+                                const next = e.target.checked
+                                  ? [...current, option]
+                                  : current.filter((item) => item !== option)
+                                setProfileAnswers((prev) => ({ ...prev, [question.key]: next }))
+                              }}
+                              style={{ width: 16, height: 16 }}
+                            />
+                            <span>{option}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
                   ) : (
                     <input
                       value={String(profileAnswers[question.key] || "")}
