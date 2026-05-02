@@ -195,28 +195,47 @@ export default function AdminUsersPage() {
 
       <div className="card stack">
         {sortedUsers.map((u) => (
-          <div key={u.id} className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            key={u.id}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(320px, 1fr) minmax(420px, 460px)",
+              gap: 16,
+              alignItems: "center",
+            }}
+          >
             <div className="stack" style={{ gap: 4 }}>
               <strong>{u.full_name || u.email}</strong>
               <span className="muted">{u.email}</span>
             </div>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
-              <span className="pill">{u.role}</span>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "130px 1fr",
+                gap: 10,
+                alignItems: "center",
+                justifyItems: "start",
+              }}
+            >
+              <span className="pill" style={{ justifySelf: "end" }}>{u.role}</span>
               {canManageRoles && (
-                <div className="row" style={{ alignItems: "center" }}>
+                <div className="stack" style={{ gap: 8, width: "100%" }}>
                   <select
                     value={u.role}
                     disabled={busyRoleUserId === u.id}
                     onChange={(e) => changeRole(u.id, e.target.value as AdminUser["role"])}
+                    style={{ width: "100%" }}
                   >
                     <option value="client">client</option>
                     <option value="admin">admin</option>
                     <option value="super_admin">super_admin</option>
                   </select>
-                  <button onClick={() => openGrantModal(u)} disabled={busyGrantUserId === u.id}>
+                  <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                    <button onClick={() => openGrantModal(u)} disabled={busyGrantUserId === u.id}>
                     {busyGrantUserId === u.id ? "Se proceseaza..." : "Acorda acces…"}
-                  </button>
-                  {lastGrantedUserId === u.id && <span className="muted">Acces acordat.</span>}
+                    </button>
+                    {lastGrantedUserId === u.id && <span className="muted">Acces acordat.</span>}
+                  </div>
                 </div>
               )}
             </div>
