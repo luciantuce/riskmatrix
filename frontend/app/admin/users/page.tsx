@@ -38,6 +38,7 @@ export default function AdminUsersPage() {
   const [notice, setNotice] = useState("")
   const [busyRoleUserId, setBusyRoleUserId] = useState<number | null>(null)
   const [busyGrantUserId, setBusyGrantUserId] = useState<number | null>(null)
+  const [lastGrantedUserId, setLastGrantedUserId] = useState<number | null>(null)
   const [grantUser, setGrantUser] = useState<AdminUser | null>(null)
   const [selectedProductCodes, setSelectedProductCodes] = useState<string[]>([])
   const [autoBundle, setAutoBundle] = useState(true)
@@ -114,9 +115,10 @@ export default function AdminUsersPage() {
 
   const grantProducts = async (userId: number, productCodes: string[]) => {
     if (!token || !canManageRoles) return
-    if (!productCodes.length) return
+    if (!productCodes.length) return false
     try {
       setBusyGrantUserId(userId)
+      setLastGrantedUserId(null)
       setNotice("")
       setError("")
       for (const productCode of productCodes) {
@@ -128,9 +130,12 @@ export default function AdminUsersPage() {
         )
       }
       setNotice(`Acces acordat (${productCodes.length} produs${productCodes.length > 1 ? "e" : ""}).`)
+      setLastGrantedUserId(userId)
+      return true
     } catch (e) {
       setError(String(e))
       setNotice("Nu am putut acorda accesul.")
+      return false
     } finally {
       setBusyGrantUserId(null)
     }
@@ -161,8 +166,8 @@ export default function AdminUsersPage() {
       autoBundle && selectedAllKits && bundleProduct
         ? [bundleProduct.code]
         : selectedProductCodes
-    await grantProducts(grantUser.id, finalCodes)
-    closeGrantModal()
+    const ok = await grantProducts(grantUser.id, finalCodes)
+    if (ok) closeGrantModal()
   }
 
   if (!authorized) return null
@@ -200,8 +205,10 @@ export default function AdminUsersPage() {
                     <option value="admin">admin</option>
                     <option value="super_admin">super_admin</option>
                   </select>
-                  <button onClick={() => openGrantModal(u)}>Acorda acces…</button>
-                  {busyGrantUserId === u.id && <span className="muted">Se proceseaza...</span>}
+                  <button onClick={() => openGrantModal(u)} disabled={busyGrantUserId === u.id}>
+                    {busyGrantUserId === u.id ? "Se proceseaza..." : "Acorda acces…"}
+                  </button>
+                  {lastGrantedUserId === u.id && <span className="muted">Acces acordat.</span>}
                 </div>
               )}
             </div>
@@ -225,7 +232,7 @@ export default function AdminUsersPage() {
           <div className="card stack" style={{ width: "min(780px, 100%)", maxHeight: "85vh", overflow: "auto" }}>
             <div className="section-title" style={{ marginBottom: 4 }}>
               <h2 style={{ margin: 0 }}>Acorda acces manual</h2>
-              <button className="button secondary" onClick={closeGrantModal}>
+              <button className="button secondary" onClick={closeGrantModal} disabled={busyGrantUserId === grantUser.id}>
                 Inchide
               </button>
             </div>
@@ -251,6 +258,7 @@ export default function AdminUsersPage() {
                     type="checkbox"
                     checked={selectedProductCodes.includes(p.code)}
                     onChange={() => toggleProductCode(p.code)}
+                    disabled={busyGrantUserId === grantUser.id}
                     style={{ width: 16, height: 16 }}
                   />
                   <span>{p.name}</span>
