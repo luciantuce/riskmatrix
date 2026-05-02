@@ -29,7 +29,6 @@ type Product = {
 export default function AdminUsersPage() {
   const router = useRouter()
   const { getToken } = useAuth()
-  const [token, setToken] = useState<string | null>(null)
   const [authorized, setAuthorized] = useState(false)
   const [selfRole, setSelfRole] = useState<string>("client")
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -77,7 +76,6 @@ export default function AdminUsersPage() {
           return
         }
         if (!cancelled) {
-          setToken(jwt)
           setSelfRole(me.role)
           setAuthorized(true)
         }
@@ -97,8 +95,13 @@ export default function AdminUsersPage() {
   }, [getToken, router])
 
   const changeRole = async (userId: number, role: AdminUser["role"]) => {
-    if (!token || !canManageRoles) return
+    if (!canManageRoles) return
     try {
+      const token = await getToken()
+      if (!token) {
+        setError("Sesiunea a expirat. Reautentifica-te.")
+        return
+      }
       setBusyRoleUserId(userId)
       setNotice("")
       setError("")
@@ -114,9 +117,14 @@ export default function AdminUsersPage() {
   }
 
   const grantProducts = async (userId: number, productCodes: string[]) => {
-    if (!token || !canManageRoles) return
+    if (!canManageRoles) return false
     if (!productCodes.length) return false
     try {
+      const token = await getToken()
+      if (!token) {
+        setError("Sesiunea a expirat. Reautentifica-te.")
+        return false
+      }
       setBusyGrantUserId(userId)
       setLastGrantedUserId(null)
       setNotice("")
