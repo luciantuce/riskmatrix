@@ -42,7 +42,7 @@ PROFILE_GENERAL_DEFINITION = [
             {"key": "nr_conturi_bancare", "label": "Numar conturi bancare", "type": "number", "required": False},
             {"key": "nr_angajati", "label": "Numar angajati", "type": "number", "required": False},
             {"key": "persoana_contact", "label": "Persoana responsabila transmitere documente", "type": "text", "required": False},
-            {"key": "canale_comunicare", "label": "Canale de comunicare", "type": "multi_choice", "required": False, "options": ["email", "telefon", "whatsapp", "TaxDome", "alta platforma"]},
+            {"key": "canale_comunicare", "label": "Canale de comunicare", "type": "multi_choice", "required": False, "options": ["email", "telefon", "whatsapp", "Platforme online"]},
         ],
     },
 ]

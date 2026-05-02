@@ -72,6 +72,9 @@ export default function ClientDetailPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [saveNotice, setSaveNotice] = useState("")
 
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+  const isValidPhone = (value: string) => /^\+?[0-9()\-\s]{7,20}$/.test(value.trim())
+
   const load = async () => {
     try {
       const token = await getToken()
@@ -101,6 +104,34 @@ export default function ClientDetailPage() {
     try {
       setIsSavingProfile(true)
       setSaveNotice("")
+      setError("")
+      const channels = Array.isArray(profileAnswers.canale_comunicare) ? (profileAnswers.canale_comunicare as string[]) : []
+      const emailContact = String(profileAnswers.canale_comunicare_email || "").trim()
+      const phoneContact = String(profileAnswers.canale_comunicare_telefon || "").trim()
+
+      if (channels.includes("email") && !emailContact) {
+        setSaveNotice("Completeaza emailul de comunicare.")
+        return
+      }
+      if (channels.includes("email") && !isValidEmail(emailContact)) {
+        setSaveNotice("Email de comunicare invalid.")
+        return
+      }
+      if (channels.includes("telefon") && !phoneContact) {
+        setSaveNotice("Completeaza telefonul de comunicare.")
+        return
+      }
+      if (channels.includes("telefon") && !isValidPhone(phoneContact)) {
+        setSaveNotice("Telefon de comunicare invalid.")
+        return
+      }
+      if (
+        channels.includes("Platforme online")
+        && !String(profileAnswers.canale_comunicare_platforme || "").trim()
+      ) {
+        setSaveNotice("Completeaza platformele online (separate prin virgula).")
+        return
+      }
       const token = await getToken()
       await apiSend(`/api/clients/${clientId}/profile`, "PUT", { answers: profileAnswers }, token ?? undefined)
       setSaveNotice("Profil salvat.")
@@ -217,6 +248,43 @@ export default function ClientDetailPage() {
                           </label>
                         )
                       })}
+                      {question.key === "canale_comunicare" && (
+                        <div className="stack" style={{ gap: 8 }}>
+                          {Array.isArray(profileAnswers[question.key]) && (profileAnswers[question.key] as string[]).includes("email") && (
+                            <div>
+                              <label style={{ fontWeight: 600 }}>Email de comunicare</label>
+                              <input
+                                type="email"
+                                placeholder="ex: contact@firma.ro"
+                                value={String(profileAnswers.canale_comunicare_email || "")}
+                                onChange={(e) => setProfileAnswers((prev) => ({ ...prev, canale_comunicare_email: e.target.value }))}
+                              />
+                            </div>
+                          )}
+                          {Array.isArray(profileAnswers[question.key]) && (profileAnswers[question.key] as string[]).includes("telefon") && (
+                            <div>
+                              <label style={{ fontWeight: 600 }}>Telefon de comunicare</label>
+                              <input
+                                type="tel"
+                                placeholder="ex: +40 721 000 000"
+                                value={String(profileAnswers.canale_comunicare_telefon || "")}
+                                onChange={(e) => setProfileAnswers((prev) => ({ ...prev, canale_comunicare_telefon: e.target.value }))}
+                              />
+                            </div>
+                          )}
+                          {Array.isArray(profileAnswers[question.key]) && (profileAnswers[question.key] as string[]).includes("Platforme online") && (
+                            <div>
+                              <label style={{ fontWeight: 600 }}>Platforme online (separate prin virgula)</label>
+                              <input
+                                type="text"
+                                placeholder="ex: SmartBill, Google Drive, Slack"
+                                value={String(profileAnswers.canale_comunicare_platforme || "")}
+                                onChange={(e) => setProfileAnswers((prev) => ({ ...prev, canale_comunicare_platforme: e.target.value }))}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <input

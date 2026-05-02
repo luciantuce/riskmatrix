@@ -1,13 +1,19 @@
 # Session Status
 
-Last updated: 2026-05-02 16:25 (Europe/Bucharest)
+Last updated: 2026-05-02 16:45 (Europe/Bucharest)
 
 ## Now
 - Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
 - Restricția IP a fost eliminată din Railway (`ALLOWED_IPS` șters pe `riskmatrixai-be` și `riskmatrixai-fe`).
 - Admin users are modal „thickbox” pentru grant manual pe 1+ kituri, cu auto-bundle.
+- Profil client: canale comunicare extinse cu câmpuri dedicate + validări.
 
 ## Last Done
+- `uncommitted` Profile communication channels update:
+  - opțiuni `canale_comunicare`: `email`, `telefon`, `whatsapp`, `Platforme online`
+  - eliminat `TaxDome` și `alta platforma`
+  - câmpuri dedicate în UI: `canale_comunicare_email`, `canale_comunicare_telefon`, `canale_comunicare_platforme`
+  - validări la salvare: email/telefon format + câmp obligatoriu dacă opțiunea e bifată.
 - `uncommitted` Admin grant modal:
   - buton `Acorda acces…` în `/admin/users`
   - selecție multi-kit / multi-produs

@@ -107,6 +107,11 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
     automat pe rânduri lungi.
 - `Client` — o firmă evaluată (devine user-scoped)
 - `ClientProfile` — date generale de firmă
+  - `answers_json` extins (2026-05-02) pentru canale de comunicare:
+    - `canale_comunicare` (multi_choice)
+    - `canale_comunicare_email` (text validat email)
+    - `canale_comunicare_telefon` (text validat telefon)
+    - `canale_comunicare_platforme` (text, listă separată prin virgulă)
 - `KitSubmission` — răspunsuri pentru o pereche `(client, kit)`
 - `KitResult` — output calculat al unui submission
   - UI decision (2026-05-01): rezultatele sunt agregate în summary la nivel de
