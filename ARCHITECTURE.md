@@ -106,6 +106,7 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
     randate corect și independent de OS-ul Railway. Layout-ul aplică wrap
     automat pe rânduri lungi.
 - `Client` — o firmă evaluată (devine user-scoped)
+  - ștergere logică activă prin `deleted_at` (soft delete), nu hard delete
 - `ClientProfile` — date generale de firmă
   - `answers_json` extins (2026-05-02) pentru canale de comunicare:
     - `canale_comunicare` (multi_choice)

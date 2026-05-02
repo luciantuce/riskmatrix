@@ -482,6 +482,18 @@ def get_client(
     return _get_client(db, client_id, user)
 
 
+@app.delete("/api/clients/{client_id}")
+def delete_client(
+    client_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    client = _get_client(db, client_id, user)
+    client.deleted_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
 @app.get("/api/clients/{client_id}/summary", response_model=ClientSummaryResponse)
 def get_client_summary(
     client_id: int,

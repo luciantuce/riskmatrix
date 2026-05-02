@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@clerk/nextjs"
 
 import { apiGet, apiSend } from "@/lib/api"
@@ -58,6 +59,7 @@ type ClientKitSummary = {
 }
 
 export default function ClientDetailPage() {
+  const router = useRouter()
   const params = useParams()
   const clientId = params.id as string
   const { getToken } = useAuth()
@@ -70,6 +72,7 @@ export default function ClientDetailPage() {
   const [kitSummaries, setKitSummaries] = useState<ClientKitSummary[]>([])
   const [error, setError] = useState("")
   const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isDeletingClient, setIsDeletingClient] = useState(false)
   const [saveNotice, setSaveNotice] = useState("")
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -146,6 +149,25 @@ export default function ClientDetailPage() {
     }
   }
 
+  const deleteClient = async () => {
+    if (!client) return
+    const confirmed = window.confirm(`Sigur vrei sa stergi clientul "${client.name}"?`)
+    if (!confirmed) return
+    try {
+      setIsDeletingClient(true)
+      setSaveNotice("")
+      setError("")
+      const token = await getToken()
+      await apiSend(`/api/clients/${clientId}`, "DELETE", undefined, token ?? undefined)
+      router.push("/clients")
+    } catch (e) {
+      setSaveNotice("Nu am putut sterge clientul.")
+      setError(String(e))
+    } finally {
+      setIsDeletingClient(false)
+    }
+  }
+
   const riskBadgeClass = (level?: string | null) => {
     if (!level) return "pill"
     if (level === "LOW") return "status-badge status-low"
@@ -171,6 +193,16 @@ export default function ClientDetailPage() {
       <div className="card">
         <h1>{client?.name || "Client"}</h1>
         <p className="muted">{client?.company_name || "Profil nou"}</p>
+        <div style={{ marginTop: 8 }}>
+          <button
+            className="button secondary"
+            onClick={deleteClient}
+            disabled={isDeletingClient}
+            style={{ fontSize: 13 }}
+          >
+            {isDeletingClient ? "Sterg client..." : "Sterge client"}
+          </button>
+        </div>
         {clientSummary && (
           <div className="row" style={{ marginTop: 8 }}>
             <span className="pill">{clientSummary.completed_kits} kituri completate</span>

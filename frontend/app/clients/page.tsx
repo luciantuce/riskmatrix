@@ -31,6 +31,7 @@ export default function ClientsPage() {
   const [notes, setNotes] = useState("")
   const [error, setError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
+  const [busyDeleteClientId, setBusyDeleteClientId] = useState<number | null>(null)
   const [notice, setNotice] = useState("")
   const riskBadgeClass = (level?: string | null) => {
     if (!level) return "pill"
@@ -92,6 +93,29 @@ export default function ClientsPage() {
     }
   }
 
+  const deleteClient = async (clientId: number, clientName: string) => {
+    const confirmed = window.confirm(`Sigur vrei sa stergi clientul "${clientName}"?`)
+    if (!confirmed) return
+    try {
+      setBusyDeleteClientId(clientId)
+      setNotice("")
+      setError("")
+      const token = await getToken()
+      if (!token) {
+        setError("Nu am putut obtine token-ul de autentificare. Reincarca pagina.")
+        return
+      }
+      await apiSend(`/api/clients/${clientId}`, "DELETE", undefined, token)
+      setNotice("Client sters.")
+      await load()
+    } catch (e) {
+      setError(String(e))
+      setNotice("Nu am putut sterge clientul.")
+    } finally {
+      setBusyDeleteClientId(null)
+    }
+  }
+
   return (
     <main className="stack">
       <div className="section-title">
@@ -128,10 +152,22 @@ export default function ClientsPage() {
 
       <div className="grid grid-2">
         {clients.map((client) => (
-          <Link key={client.id} href={`/clients/${client.id}`} className="card stack">
+          <div key={client.id} className="card stack">
             <div className="section-title" style={{ marginBottom: 0 }}>
-              <strong>{client.name}</strong>
-              <span className="pill">client</span>
+              <Link href={`/clients/${client.id}`}>
+                <strong>{client.name}</strong>
+              </Link>
+              <div className="row" style={{ gap: 8 }}>
+                <span className="pill">client</span>
+                <button
+                  className="button secondary"
+                  onClick={() => deleteClient(client.id, client.name)}
+                  disabled={busyDeleteClientId === client.id}
+                  style={{ fontSize: 12, padding: "6px 10px" }}
+                >
+                  {busyDeleteClientId === client.id ? "Sterg..." : "Sterge"}
+                </button>
+              </div>
             </div>
             <span className="muted">{client.company_name || "Fara denumire companie"}</span>
             <div className="row" style={{ gap: 8 }}>
@@ -146,7 +182,12 @@ export default function ClientsPage() {
               )}
               {client.summary.latest_risk_kit_name && <span className="pill">Ultimul kit: {client.summary.latest_risk_kit_name}</span>}
             </div>
-          </Link>
+            <div>
+              <Link href={`/clients/${client.id}`} className="button secondary" style={{ fontSize: 13 }}>
+                Deschide client
+              </Link>
+            </div>
+          </div>
         ))}
       </div>
 

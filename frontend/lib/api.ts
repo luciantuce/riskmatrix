@@ -16,19 +16,18 @@ export async function apiGet<T>(path: string, token?: string): Promise<T> {
 
 export async function apiSend<T>(
   path: string,
-  method: "POST" | "PUT",
-  body: unknown,
+  method: "POST" | "PUT" | "DELETE",
+  body?: unknown,
   token?: string,
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  }
+  const headers: Record<string, string> = {}
   if (token) headers["Authorization"] = `Bearer ${token}`
+  if (body !== undefined) headers["Content-Type"] = "application/json"
 
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) {
     throw new Error(await res.text())

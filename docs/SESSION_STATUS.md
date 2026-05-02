@@ -1,14 +1,20 @@
 # Session Status
 
-Last updated: 2026-05-02 16:45 (Europe/Bucharest)
+Last updated: 2026-05-02 17:05 (Europe/Bucharest)
 
 ## Now
 - Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
 - Restricția IP a fost eliminată din Railway (`ALLOWED_IPS` șters pe `riskmatrixai-be` și `riskmatrixai-fe`).
 - Admin users are modal „thickbox” pentru grant manual pe 1+ kituri, cu auto-bundle.
 - Profil client: canale comunicare extinse cu câmpuri dedicate + validări.
+- Ștergere client disponibilă (soft delete) din listă și din pagina clientului.
 
 ## Last Done
+- `uncommitted` Client delete flow:
+  - backend: `DELETE /api/clients/{id}` -> setează `deleted_at` (soft delete)
+  - frontend: buton `Sterge` în `/clients` + confirmare
+  - frontend: buton `Sterge client` în `/clients/{id}` + redirect la listă după succes
+  - `apiSend` extins pentru metoda `DELETE`
 - `uncommitted` Profile communication channels update:
   - opțiuni `canale_comunicare`: `email`, `telefon`, `whatsapp`, `Platforme online`
   - eliminat `TaxDome` și `alta platforma`
