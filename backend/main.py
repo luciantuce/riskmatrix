@@ -461,7 +461,7 @@ def create_client(
 ):
     client = Client(
         user_id=user.id,
-        name=payload.name,
+        name=payload.name.strip(),
         company_name=payload.company_name,
         notes=payload.notes,
     )

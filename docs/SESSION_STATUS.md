@@ -1,6 +1,6 @@
 # Session Status
 
-Last updated: 2026-05-02 17:05 (Europe/Bucharest)
+Last updated: 2026-05-02 17:18 (Europe/Bucharest)
 
 ## Now
 - Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
@@ -8,8 +8,14 @@ Last updated: 2026-05-02 17:05 (Europe/Bucharest)
 - Admin users are modal „thickbox” pentru grant manual pe 1+ kituri, cu auto-bundle.
 - Profil client: canale comunicare extinse cu câmpuri dedicate + validări.
 - Ștergere client disponibilă (soft delete) din listă și din pagina clientului.
+- UX listă clienți: buton `Sterge` mutat lângă `Deschide client`.
+- Validare creare client: blocat nume gol (frontend + backend).
 
 ## Last Done
+- `uncommitted` Clients UX/data validation fix:
+  - `Sterge` lângă `Deschide client` pe card client
+  - `POST /api/clients` validează `name` non-empty (trim + validation)
+  - frontend blochează submit fără nume și afișează mesaj explicit.
 - `uncommitted` Client delete flow:
   - backend: `DELETE /api/clients/{id}` -> setează `deleted_at` (soft delete)
   - frontend: buton `Sterge` în `/clients` + confirmare

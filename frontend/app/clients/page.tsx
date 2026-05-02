@@ -65,6 +65,11 @@ export default function ClientsPage() {
       setIsCreating(true)
       setNotice("")
       setError("")
+      const trimmedName = name.trim()
+      if (!trimmedName) {
+        setNotice("Numele clientului este obligatoriu.")
+        return
+      }
       if (!isLoaded) {
         setError("Sesiunea nu este gata. Reincarca pagina sau reconecteaza-te.")
         return
@@ -77,7 +82,7 @@ export default function ClientsPage() {
       await apiSend(
         "/api/clients",
         "POST",
-        { name, company_name: companyName || null, notes: notes || null },
+        { name: trimmedName, company_name: companyName || null, notes: notes || null },
         token,
       )
       setName("")
@@ -157,17 +162,7 @@ export default function ClientsPage() {
               <Link href={`/clients/${client.id}`}>
                 <strong>{client.name}</strong>
               </Link>
-              <div className="row" style={{ gap: 8 }}>
-                <span className="pill">client</span>
-                <button
-                  className="button secondary"
-                  onClick={() => deleteClient(client.id, client.name)}
-                  disabled={busyDeleteClientId === client.id}
-                  style={{ fontSize: 12, padding: "6px 10px" }}
-                >
-                  {busyDeleteClientId === client.id ? "Sterg..." : "Sterge"}
-                </button>
-              </div>
+              <span className="pill">client</span>
             </div>
             <span className="muted">{client.company_name || "Fara denumire companie"}</span>
             <div className="row" style={{ gap: 8 }}>
@@ -182,10 +177,18 @@ export default function ClientsPage() {
               )}
               {client.summary.latest_risk_kit_name && <span className="pill">Ultimul kit: {client.summary.latest_risk_kit_name}</span>}
             </div>
-            <div>
+            <div className="row" style={{ gap: 8 }}>
               <Link href={`/clients/${client.id}`} className="button secondary" style={{ fontSize: 13 }}>
                 Deschide client
               </Link>
+              <button
+                className="button secondary"
+                onClick={() => deleteClient(client.id, client.name)}
+                disabled={busyDeleteClientId === client.id}
+                style={{ fontSize: 13 }}
+              >
+                {busyDeleteClientId === client.id ? "Sterg..." : "Sterge"}
+              </button>
             </div>
           </div>
         ))}
