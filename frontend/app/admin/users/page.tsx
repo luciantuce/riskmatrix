@@ -217,7 +217,16 @@ export default function AdminUsersPage() {
                 justifyItems: "start",
               }}
             >
-              <span className="pill" style={{ justifySelf: "end" }}>{u.role}</span>
+              <span
+                className="pill"
+                style={{
+                  width: 130,
+                  textAlign: "center",
+                  justifySelf: "start",
+                }}
+              >
+                {u.role}
+              </span>
               {canManageRoles && (
                 <div className="stack" style={{ gap: 8, width: "100%" }}>
                   <select
