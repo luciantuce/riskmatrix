@@ -77,6 +77,8 @@ admin tool" în B2B SaaS pentru contabili și consultanți fiscali.
 - Backend, Frontend, Postgres în `europe-west4-drams3a`
 - Auto-deploy din branch-ul `main`
 - Plan Hobby + usage-based billing
+- Custom domain activ: `riskmatrixai.ro` (+ `www.riskmatrixai.ro`) prin
+  Cloudflare DNS
 
 ### Observability: Sentry (Sprint 4)
 
@@ -217,6 +219,15 @@ email_sends (
 CREATE UNIQUE INDEX idx_email_sends_dedupe
   ON email_sends(user_id, template_code, (context_jsonb->>'subscription_id'));
 ```
+
+### Admin grants (operational UX, 2026-05-02)
+
+- În `/admin/users`, rolul `super_admin` acordă acces manual dintr-un modal
+  multi-select (1+ produse/kituri).
+- Dacă sunt selectate toate produsele de tip `kit` și există produs activ de
+  tip `bundle`, UI poate acorda automat doar bundle-ul (toggle `auto-bundle`).
+- Grant-ul folosește endpoint-ul existent
+  `POST /api/admin/users/{user_id}/subscriptions` pentru fiecare `product_code`.
 
 ### Modificări pe tabelele existente (Sprint 1)
 
@@ -601,10 +612,14 @@ Considerate explicit și amânate. Reevaluare doar dacă user research schimbă 
 ENVIRONMENT=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 PORT=8010
-CORS_ORIGINS=https://ideal-generosity-production-b637.up.railway.app
+CORS_ORIGINS=https://riskmatrixai.ro,https://www.riskmatrixai.ro,https://ideal-generosity-production-b637.up.railway.app
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<rotated, schimbat din placeholder>
 SEED_ON_STARTUP=false
+
+# IP allowlist
+# ALLOWED_IPS este scos din BE/FE (2026-05-02) pentru acces public.
+# Gate-ul rămâne disponibil în cod și se reactivează doar dacă variabila e setată.
 
 # De adăugat (Sprint 1)
 CLERK_SECRET_KEY=sk_test_...

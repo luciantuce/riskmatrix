@@ -1,12 +1,19 @@
 # Session Status
 
-Last updated: 2026-05-01 14:33 (Europe/Bucharest)
+Last updated: 2026-05-02 16:25 (Europe/Bucharest)
 
 ## Now
-- Implementat summary client multi-kit (backend + frontend), gata de deploy.
-- Include status agregat pe client și status/risc per kit în pagina clientului.
+- Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
+- Restricția IP a fost eliminată din Railway (`ALLOWED_IPS` șters pe `riskmatrixai-be` și `riskmatrixai-fe`).
+- Admin users are modal „thickbox” pentru grant manual pe 1+ kituri, cu auto-bundle.
 
 ## Last Done
+- `uncommitted` Admin grant modal:
+  - buton `Acorda acces…` în `/admin/users`
+  - selecție multi-kit / multi-produs
+  - opțiune `auto-bundle` (activă implicit): dacă sunt selectate toate kiturile și există bundle activ, acordă bundle.
+- `d48b1dd` Show kit names in client risk summaries.
+- `74938bc` Add multi-kit client summary on clients list and detail.
 - `a2b0348` Bundle Noto Sans fonts for correct Romanian diacritics in PDFs.
 - `uncommitted` Add client summaries:
   - `GET /api/clients` returns per-client summary
@@ -25,24 +32,17 @@ Last updated: 2026-05-01 14:33 (Europe/Bucharest)
 - `1a08a78` Add Catalog Kituri page and navigation entry.
 
 ## Deploy Status
-- Backend (`riskmatrixai-be`):
-  - `7f70a4c7-92b1-4532-be53-4a562f95a92a` SUCCESS (2026-05-01 13:06:38 +03:00)
-- Frontend (`riskmatrixai-fe`):
-  - `34680d4a-f456-4174-b93b-4b84a6666e56` SUCCESS (2026-05-01 13:04:14 +03:00)
+- Backend (`riskmatrixai-be`): online, acces public fără IP allowlist.
+- Frontend (`riskmatrixai-fe`): online pe `riskmatrixai.ro` și `www.riskmatrixai.ro`.
 
 ## Current Symptom
-- Open request implemented: better post-questionnaire summaries for clients with multiple kits.
-- Pending: push + Railway deploy + visual validation in production.
+- Fără blocker major în platformă.
+- În unele rețele locale poate exista cache DNS temporar după migrarea NS (rezolvat global conform DNS checker).
 
 ## Next Steps
-1. Commit and push client summary feature to `main`.
-2. Monitor Railway backend + frontend deploys until SUCCESS.
-3. Verify flows:
-   - clients list shows summary chips per client
-   - client detail top card shows aggregated summary
-   - each kit card shows status and latest risk
-4. Re-check PDF diacritics after this deploy wave.
-4. Continue cu Stripe webhook sync după confirmarea PDF.
+1. Stripe Sprint 1: checkout session endpoint + mapare `price_id -> product_code`.
+2. Stripe Sprint 1: webhook endpoint (`checkout.session.completed`, `subscription.updated/deleted`, `invoice.payment_*`).
+3. Validare end-to-end: cumpărare test card -> grant automat acces kit.
 
 ## How To Resume (copy/paste in a new chat)
-`Continuam din /docs/SESSION_STATUS.md. Te rog finalizeaza fixul PDF (unicode + wrapping), da push pe main, urmareste deploy-ul Railway la backend si confirma validarea cu un PDF nou generat.`
+`Continuam din /docs/SESSION_STATUS.md. Domeniul riskmatrixai.ro este live, ALLOWED_IPS este scos din BE+FE; urmatorul task este implementarea Stripe checkout + webhook sync pentru subscriptions.`
