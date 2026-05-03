@@ -1,6 +1,6 @@
 # Session Status
 
-Last updated: 2026-05-02 17:18 (Europe/Bucharest)
+Last updated: 2026-05-03 10:20 (Europe/Bucharest)
 
 ## Now
 - Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
@@ -12,32 +12,17 @@ Last updated: 2026-05-02 17:18 (Europe/Bucharest)
 - Validare creare client: blocat nume gol (frontend + backend).
 
 ## Last Done
-- `uncommitted` Clients UX/data validation fix:
-  - `Sterge` lângă `Deschide client` pe card client
-  - `POST /api/clients` validează `name` non-empty (trim + validation)
-  - frontend blochează submit fără nume și afișează mesaj explicit.
-- `uncommitted` Client delete flow:
-  - backend: `DELETE /api/clients/{id}` -> setează `deleted_at` (soft delete)
-  - frontend: buton `Sterge` în `/clients` + confirmare
-  - frontend: buton `Sterge client` în `/clients/{id}` + redirect la listă după succes
-  - `apiSend` extins pentru metoda `DELETE`
-- `uncommitted` Profile communication channels update:
-  - opțiuni `canale_comunicare`: `email`, `telefon`, `whatsapp`, `Platforme online`
-  - eliminat `TaxDome` și `alta platforma`
-  - câmpuri dedicate în UI: `canale_comunicare_email`, `canale_comunicare_telefon`, `canale_comunicare_platforme`
-  - validări la salvare: email/telefon format + câmp obligatoriu dacă opțiunea e bifată.
-- `uncommitted` Admin grant modal:
-  - buton `Acorda acces…` în `/admin/users`
-  - selecție multi-kit / multi-produs
-  - opțiune `auto-bundle` (activă implicit): dacă sunt selectate toate kiturile și există bundle activ, acordă bundle.
+- `ec5e4df` Validate client name and move delete action next to open button.
+- `10f9401` Add soft-delete client flow in backend and frontend.
+- `a6df919` Revise communication channels with validated contact detail fields.
+- `e0950e0` Normalize role badge width for aligned admin user actions.
+- `a9a85fa` Align admin users action column for consistent row layout.
+- `fdbab76` Refresh Clerk token on admin actions to prevent expired token errors.
+- `cf78b39` Improve admin grant UX feedback and error handling.
+- `079af4b` Add admin multi-select grant modal with auto-bundle option.
 - `d48b1dd` Show kit names in client risk summaries.
 - `74938bc` Add multi-kit client summary on clients list and detail.
 - `a2b0348` Bundle Noto Sans fonts for correct Romanian diacritics in PDFs.
-- `uncommitted` Add client summaries:
-  - `GET /api/clients` returns per-client summary
-  - `GET /api/clients/{id}/summary`
-  - `GET /api/clients/{id}/kits/summary`
-  - UI badges/cards updated in clients list and client detail page
 - `c5f9e2b` Add consistent loading/success feedback for key actions.
 - `8c2b13a` Add save feedback states for client profile.
 - `e60be2e` Use checkbox UI for multi-choice profile fields.
@@ -63,4 +48,4 @@ Last updated: 2026-05-02 17:18 (Europe/Bucharest)
 3. Validare end-to-end: cumpărare test card -> grant automat acces kit.
 
 ## How To Resume (copy/paste in a new chat)
-`Continuam din /docs/SESSION_STATUS.md. Domeniul riskmatrixai.ro este live, ALLOWED_IPS este scos din BE+FE; urmatorul task este implementarea Stripe checkout + webhook sync pentru subscriptions.`
+`Continuam din /docs/SESSION_STATUS.md. Domeniul riskmatrixai.ro este live, ALLOWED_IPS este scos din BE+FE, admin grants manuale sunt active; urmatorul task este implementarea Stripe checkout + webhook sync pentru subscriptions.`
