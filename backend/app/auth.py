@@ -10,20 +10,18 @@ Flow:
      JWT claims and a warning is logged.
 """
 
-import logging
 from functools import lru_cache
 
 import jwt
 from jwt import PyJWKClient
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.config import settings
 from app.database import get_db
+from app.logging import log
 from app.models import User
 
-_log = logging.getLogger(__name__)
 VALID_ROLES = {"client", "admin", "super_admin"}
 
 
@@ -129,11 +127,7 @@ def get_current_user(
     last = claims.get("family_name") or claims.get("last_name") or ""
     full_name = f"{first} {last}".strip() or None
 
-    _log.warning(
-        "User %s not found in DB — lazy-creating from JWT. "
-        "If frequent, check Clerk webhook delivery.",
-        clerk_user_id,
-    )
+    log.warning("clerk_webhook_user_lazy_created", clerk_user_id=clerk_user_id)
 
     role = "super_admin" if should_bootstrap_super_admin(email) else "client"
     user = User(

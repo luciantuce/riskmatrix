@@ -1,5 +1,4 @@
 import ipaddress
-import logging
 from io import BytesIO
 from typing import Any
 from datetime import datetime, timedelta
@@ -10,10 +9,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.base import BaseHTTPMiddleware
 
-_log = logging.getLogger(__name__)
-
 from app.config import settings
 from app.database import get_db
+from app.logging import configure, log
 import app.models  # noqa: F401 - register all ORM models
 from app.auth import get_current_user, normalize_role
 from app.models import (
@@ -110,16 +108,16 @@ class IPAllowlistMiddleware(BaseHTTPMiddleware):
 
         raw = _client_ip(request)
         if not raw:
-            _log.warning("IP allowlist: no client IP found, denying")
+            log.warning("ip_allowlist_no_client_ip", path=path)
             return JSONResponse({"detail": "Forbidden"}, status_code=403)
         try:
             ip_obj = ipaddress.ip_address(raw)
         except ValueError:
-            _log.warning("IP allowlist: bad client IP %r, denying", raw)
+            log.warning("ip_allowlist_bad_client_ip", client_ip=raw, path=path)
             return JSONResponse({"detail": "Forbidden"}, status_code=403)
 
         if not any(ip_obj in net for net in networks):
-            _log.info("IP allowlist: denying %s on %s", raw, path)
+            log.info("ip_allowlist_denied", client_ip=raw, path=path)
             return JSONResponse({"detail": "Forbidden"}, status_code=403)
 
         return await call_next(request)
@@ -165,6 +163,7 @@ def require_super_admin_user(user: User = Depends(get_current_user)) -> User:
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 def on_startup() -> None:
+    configure(settings.environment)
     if not settings.seed_on_startup:
         return
     db = next(get_db())
@@ -892,12 +891,12 @@ def update_user_role(
     target.role = requested_role
     db.commit()
 
-    _log.info(
-        "Role changed by user_id=%s: target_user_id=%s %s -> %s",
-        actor.id,
-        target.id,
-        current_role,
-        requested_role,
+    log.info(
+        "admin_user_role_changed",
+        actor_user_id=actor.id,
+        target_user_id=target.id,
+        old_role=current_role,
+        new_role=requested_role,
     )
     return {
         "ok": True,
