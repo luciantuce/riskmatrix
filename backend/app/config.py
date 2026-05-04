@@ -1,11 +1,10 @@
 import ipaddress
-import logging
 from typing import List
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
-_log = logging.getLogger(__name__)
+from app.logging import log
 
 
 class Settings(BaseSettings):
@@ -91,7 +90,7 @@ class Settings(BaseSettings):
                 # ip_network accepts both single IPs (auto /32 or /128) and CIDR
                 out.append(ipaddress.ip_network(entry, strict=False))
             except ValueError:
-                _log.warning("Ignoring invalid ALLOWED_IPS entry: %r", entry)
+                log.warning("allowed_ips_invalid_entry", entry=entry)
         return out
 
     @property

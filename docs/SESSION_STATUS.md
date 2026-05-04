@@ -1,8 +1,10 @@
 # Session Status
 
-Last updated: 2026-05-03 10:20 (Europe/Bucharest)
+Last updated: 2026-05-04 00:10 (Europe/Bucharest)
 
 ## Now
+- Infrastructura de teste backend (Sprint 2.1.5) a fost adaugata (`tests/conftest.py`, `tests/test_smoke.py`, `tests/test_auth.py`).
+- Blocker local: Python 3.9.6 nu poate importa backend-ul (foloseste type hints 3.10+ `str | None`); rularea `pytest -v` cere Python 3.12 conform conventiilor.
 - Domeniul `riskmatrixai.ro` este activ prin Cloudflare + Railway custom domain.
 - Restricția IP a fost eliminată din Railway (`ALLOWED_IPS` șters pe `riskmatrixai-be` și `riskmatrixai-fe`).
 - Admin users are modal „thickbox” pentru grant manual pe 1+ kituri, cu auto-bundle.
@@ -12,6 +14,9 @@ Last updated: 2026-05-03 10:20 (Europe/Bucharest)
 - Validare creare client: blocat nume gol (frontend + backend).
 
 ## Last Done
+- `chore(backend)` Logging structurat cu structlog: config nou in `backend/app/logging.py`, integrare startup, log events migrate pe auth/config/main/clerk webhook.
+- `test(backend)` Add pytest infrastructure with smoke and auth/kit-access coverage (13 tests).
+- `chore(config)` Unificat env vars: root `.env.example` complet (Backend/Frontend/Landing), `infra/env.example` marcat DEPRECATED, `docker-compose.yml` citește variabile din `.env` root.
 - `ec5e4df` Validate client name and move delete action next to open button.
 - `10f9401` Add soft-delete client flow in backend and frontend.
 - `a6df919` Revise communication channels with validated contact detail fields.
@@ -43,9 +48,10 @@ Last updated: 2026-05-03 10:20 (Europe/Bucharest)
 - În unele rețele locale poate exista cache DNS temporar după migrarea NS (rezolvat global conform DNS checker).
 
 ## Next Steps
-1. Stripe Sprint 1: checkout session endpoint + mapare `price_id -> product_code`.
-2. Stripe Sprint 1: webhook endpoint (`checkout.session.completed`, `subscription.updated/deleted`, `invoice.payment_*`).
-3. Validare end-to-end: cumpărare test card -> grant automat acces kit.
+1. Ruleaza testele backend pe Python 3.12 (local sau CI) pentru validarea completa Sprint 2.1.5.
+2. Sprint 2.1.3: integrare Sentry backend + frontend.
+3. Sprint 2.1.4: CI/CD GitHub Actions (ruff, pytest, build frontend).
+4. Stripe Sprint 2.2.1: setup products/prices RON in Stripe Dashboard.
 
 ## How To Resume (copy/paste in a new chat)
 `Continuam din /docs/SESSION_STATUS.md. Domeniul riskmatrixai.ro este live, ALLOWED_IPS este scos din BE+FE, admin grants manuale sunt active; urmatorul task este implementarea Stripe checkout + webhook sync pentru subscriptions.`

@@ -15,7 +15,6 @@ import base64
 import hashlib
 import hmac
 import json
-import logging
 import time
 from datetime import datetime
 
@@ -24,9 +23,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.logging import log
 from app.models import User, WebhookEvent
-
-_log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -102,7 +100,7 @@ async def clerk_webhook(
         .first()
     )
     if existing:
-        _log.info("Clerk webhook duplicate %s %s — skipping", event_type, external_id)
+        log.info("clerk_webhook_duplicate", event_type=event_type, external_id=external_id)
         return {"ok": True}
 
     # --- Record event (before processing, so retries don't re-process) ------
@@ -123,7 +121,7 @@ async def clerk_webhook(
         elif event_type == "user.deleted":
             _on_user_deleted(db, data)
         else:
-            _log.info("Clerk webhook: unhandled event type %s", event_type)
+            log.info("clerk_webhook_unhandled_event_type", event_type=event_type)
 
         record.processed_at = datetime.utcnow()
         db.commit()
@@ -131,8 +129,12 @@ async def clerk_webhook(
     except Exception as exc:
         record.error = str(exc)
         db.commit()
-        _log.exception(
-            "Clerk webhook handler error for %s %s: %s", event_type, external_id, exc
+        log.error(
+            "clerk_webhook_handler_failed",
+            event_type=event_type,
+            external_id=external_id,
+            error=str(exc),
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -159,17 +161,17 @@ def _on_user_created(db: Session, data: dict) -> None:
         if user.role == "user":
             user.role = "client"
         user.updated_at = datetime.utcnow()
-        _log.info("user.created: user %s already existed — updated", clerk_user_id)
+        log.info("clerk_user_created_updated_existing", clerk_user_id=clerk_user_id)
     else:
         db.add(User(clerk_user_id=clerk_user_id, email=email, full_name=full_name, role="client"))
-        _log.info("user.created: inserted %s (%s)", clerk_user_id, email)
+        log.info("clerk_user_created_inserted", clerk_user_id=clerk_user_id, email=email)
 
 
 def _on_user_updated(db: Session, data: dict) -> None:
     clerk_user_id = data["id"]
     user = db.query(User).filter(User.clerk_user_id == clerk_user_id).first()
     if not user:
-        _log.warning("user.updated: %s not in DB — inserting", clerk_user_id)
+        log.warning("clerk_user_updated_missing_local_user", clerk_user_id=clerk_user_id)
         db.add(User(
             clerk_user_id=clerk_user_id,
             email=_primary_email(data),
@@ -182,7 +184,7 @@ def _on_user_updated(db: Session, data: dict) -> None:
         if user.role == "user":
             user.role = "client"
         user.updated_at = datetime.utcnow()
-        _log.info("user.updated: updated %s", clerk_user_id)
+        log.info("clerk_user_updated", clerk_user_id=clerk_user_id)
 
 
 def _on_user_deleted(db: Session, data: dict) -> None:
@@ -192,7 +194,7 @@ def _on_user_deleted(db: Session, data: dict) -> None:
     user = db.query(User).filter(User.clerk_user_id == clerk_user_id).first()
     if user:
         user.deleted_at = datetime.utcnow()
-        _log.info("user.deleted: soft-deleted %s", clerk_user_id)
+        log.info("clerk_user_soft_deleted", clerk_user_id=clerk_user_id)
 
 
 # ---------------------------------------------------------------------------

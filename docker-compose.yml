@@ -1,6 +1,6 @@
 # Local development stack — mirrors Railway production layout (3 services).
-# Run:  docker compose up --build
-# Backend uses start.sh (Alembic upgrade + uvicorn); UVICORN_RELOAD enables --reload.
+# Run: docker compose up --build
+# Reads variables from root `.env` (compose default behavior).
 
 services:
   postgres:
@@ -25,15 +25,16 @@ services:
       dockerfile: Dockerfile
     command: ["/app/start.sh"]
     ports:
-      - "8010:8010"
+      - "${PORT:-8010}:8010"
     environment:
-      ENVIRONMENT: development
-      DATABASE_URL: postgresql://kit:kit@postgres:5432/kit_platform
-      CORS_ORIGINS: http://localhost:3010
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: dev-password-change-me
-      SEED_ON_STARTUP: "true"
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://kit:kit@postgres:5432/kit_platform}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3010}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-dev-password-change-me}
+      SEED_ON_STARTUP: ${SEED_ON_STARTUP:-true}
       UVICORN_RELOAD: "1"
+      PORT: "8010"
     volumes:
       - ./backend:/app
       - ./frontend/public/docs:/app/docs_output
@@ -46,9 +47,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3010:3010"
+      - "${FRONTEND_PORT:-3010}:3010"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8010
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8010}
+      PORT: "3010"
     volumes:
       - ./frontend:/app
       - /app/node_modules
