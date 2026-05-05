@@ -3,10 +3,19 @@
 import * as Sentry from "@sentry/nextjs"
 import { useEffect } from "react"
 
+declare global {
+  interface Window {
+    Sentry?: typeof Sentry
+  }
+}
+
 export function SentryInit() {
   useEffect(() => {
     const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN
-    if (!dsn) return
+    if (!dsn) {
+      console.warn("[sentry] NEXT_PUBLIC_SENTRY_DSN missing — SDK disabled")
+      return
+    }
 
     Sentry.init({
       dsn,
@@ -22,6 +31,13 @@ export function SentryInit() {
         return event
       },
     })
+
+    // Expose globally for manual testing from browser console
+    if (typeof window !== "undefined") {
+      window.Sentry = Sentry
+    }
+
+    console.info("[sentry] client SDK initialized — call window.Sentry.captureException(new Error('test')) to verify")
   }, [])
 
   return null
