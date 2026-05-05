@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     clerk_webhook_secret: str = ""
     clerk_jwks_url: str = ""
     bootstrap_super_admin_email: str = ""
+    sentry_dsn_backend: str = ""
 
     # --- Misc ---------------------------------------------------------------
     # Whether to run the auto-seeder on startup. Disable in production once
