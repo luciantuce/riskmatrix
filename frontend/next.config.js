@@ -23,4 +23,8 @@ const nextConfig = {
 
 module.exports = withSentryConfig(nextConfig, {
   silent: true,
+  // Disable source map upload (no SENTRY_AUTH_TOKEN configured)
+  disableSourceMapUpload: true,
+  // Suppress Sentry build-time telemetry
+  telemetry: false,
 })
