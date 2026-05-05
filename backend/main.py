@@ -60,13 +60,12 @@ from app.schemas import (
 from app.seed_data import PROFILE_GENERAL_DEFINITION, seed_database
 
 def _sentry_before_send(event: dict, hint: dict) -> dict | None:
-    status_code = (
-        event.get("response", {}).get("status_code")
-        or event.get("contexts", {}).get("response", {}).get("status_code")
-        or event.get("request", {}).get("status_code")
-    )
-    if isinstance(status_code, int) and status_code < 500:
-        return None
+    """Drop 4xx HTTP exceptions — only send 5xx and unhandled errors to Sentry."""
+    exc_info = hint.get("exc_info")
+    if exc_info:
+        exc = exc_info[1]
+        if isinstance(exc, HTTPException) and exc.status_code < 500:
+            return None
     return event
 
 
@@ -78,6 +77,9 @@ if settings.environment in ("staging", "production") and settings.sentry_dsn_bac
         send_default_pii=True,
         before_send=_sentry_before_send,
     )
+    _SENTRY_ACTIVE = True
+else:
+    _SENTRY_ACTIVE = False
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +187,11 @@ def require_super_admin_user(user: User = Depends(get_current_user)) -> User:
 @app.on_event("startup")
 def on_startup() -> None:
     configure(settings.environment)
+    log.info(
+        "app_startup",
+        environment=settings.environment,
+        sentry_active=_SENTRY_ACTIVE,
+    )
     if not settings.seed_on_startup:
         return
     db = next(get_db())

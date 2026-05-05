@@ -2,21 +2,26 @@ import * as Sentry from "@sentry/nextjs"
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN
+    if (!dsn) {
+      console.warn("[sentry] NEXT_PUBLIC_SENTRY_DSN not set — Sentry disabled on server")
+      return
+    }
     Sentry.init({
-      dsn: process.env.SENTRY_DSN_BACKEND || process.env.NEXT_PUBLIC_SENTRY_DSN,
+      dsn,
       environment: process.env.NODE_ENV,
       tracesSampleRate: 0.1,
       sendDefaultPii: true,
-      beforeSend(event) {
-        const responseContext = (event.contexts?.response as { status_code?: number } | undefined)
-        const nextContext = (event.contexts?.nextjs as { statusCode?: number } | undefined)
-        const statusCode = responseContext?.status_code ?? nextContext?.statusCode
-
-        if (typeof statusCode === "number" && statusCode < 500) {
-          return null
+      // Only send unhandled errors and 5xx — drop 4xx client errors
+      beforeSend(event, hint) {
+        const err = hint?.originalException
+        if (err && typeof err === "object" && "status" in err) {
+          const status = (err as { status?: number }).status
+          if (typeof status === "number" && status < 500) return null
         }
         return event
       },
     })
+    console.info("[sentry] initialized", { environment: process.env.NODE_ENV })
   }
 }
