@@ -1,6 +1,6 @@
 # Session Status
 
-Last updated: 2026-05-05 09:40 (Europe/Bucharest)
+Last updated: 2026-05-05 10:15 (Europe/Bucharest)
 
 ## Now
 - Infrastructura de teste backend (Sprint 2.1.5) a fost adaugata (`tests/conftest.py`, `tests/test_smoke.py`, `tests/test_auth.py`).
@@ -14,6 +14,7 @@ Last updated: 2026-05-05 09:40 (Europe/Bucharest)
 - Validare creare client: blocat nume gol (frontend + backend).
 
 ## Last Done
+- `feat(frontend)` Integrare Sentry Next.js (instrumentation server/client, global error handler App Router, wrapper `withSentryConfig`).
 - `feat(backend)` Integrare Sentry in FastAPI (env `SENTRY_DSN_BACKEND`, init doar in staging/production, filtru before_send pentru 4xx).
 - `chore(backend)` Logging structurat cu structlog: config nou in `backend/app/logging.py`, integrare startup, log events migrate pe auth/config/main/clerk webhook.
 - `test(backend)` Add pytest infrastructure with smoke and auth/kit-access coverage (13 tests).
@@ -50,8 +51,8 @@ Last updated: 2026-05-05 09:40 (Europe/Bucharest)
 
 ## Next Steps
 1. Ruleaza testele backend pe Python 3.12 (local sau CI) pentru validarea completa Sprint 2.1.5.
-2. Sprint 2.1.3: integrare Sentry frontend (`@sentry/nextjs` + wizard + DSN public).
-3. Sprint 2.1.4: CI/CD GitHub Actions (ruff, pytest, build frontend).
+2. Setare env Railway: `SENTRY_DSN_BACKEND` pe BE si `NEXT_PUBLIC_SENTRY_DSN` pe FE, apoi redeploy ambele servicii.
+3. Validare Sentry: trigger eroare backend (500) + eroare frontend (global error) si confirmare event in dashboard.
 4. Stripe Sprint 2.2.1: setup products/prices RON in Stripe Dashboard.
 
 ## How To Resume (copy/paste in a new chat)
