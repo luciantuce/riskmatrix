@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Any
 from datetime import datetime, timedelta
 
+import sentry_sdk
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -57,6 +58,26 @@ from app.schemas import (
     RuleResponse,
 )
 from app.seed_data import PROFILE_GENERAL_DEFINITION, seed_database
+
+def _sentry_before_send(event: dict, hint: dict) -> dict | None:
+    status_code = (
+        event.get("response", {}).get("status_code")
+        or event.get("contexts", {}).get("response", {}).get("status_code")
+        or event.get("request", {}).get("status_code")
+    )
+    if isinstance(status_code, int) and status_code < 500:
+        return None
+    return event
+
+
+if settings.environment in ("staging", "production") and settings.sentry_dsn_backend:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn_backend,
+        environment=settings.environment,
+        traces_sample_rate=0.1,
+        send_default_pii=True,
+        before_send=_sentry_before_send,
+    )
 
 
 # ---------------------------------------------------------------------------

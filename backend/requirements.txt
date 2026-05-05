@@ -19,3 +19,4 @@ passlib[bcrypt]==1.7.4
 PyJWT==2.12.1
 cryptography==44.0.3
 structlog==24.4.0
+sentry-sdk[fastapi]==2.29.1
