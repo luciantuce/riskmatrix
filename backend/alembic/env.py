@@ -2,19 +2,21 @@
 Alembic environment — pulls DATABASE_URL and the SQLAlchemy metadata
 from the application code, so there's a single source of truth.
 """
-from logging.config import fileConfig
-
-from alembic import context
-from sqlalchemy import engine_from_config, pool
 
 # Make `app.*` importable when alembic runs from the backend/ directory.
 import os
 import sys
+from logging.config import fileConfig
+
+from sqlalchemy import engine_from_config, pool
+
+from alembic import context
+
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
+import app.models  # noqa: F401,E402 — register all models with Base.metadata
 from app.config import settings  # noqa: E402
 from app.database import Base  # noqa: E402
-import app.models  # noqa: F401,E402 — register all models with Base.metadata
 
 config = context.config
 

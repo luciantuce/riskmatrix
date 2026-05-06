@@ -3,7 +3,6 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.config import settings
 
-
 # ---------------------------------------------------------------------------
 # Engine setup
 # ---------------------------------------------------------------------------
@@ -18,10 +17,10 @@ if settings.is_sqlite:
 else:
     engine = create_engine(
         settings.database_url,
-        pool_pre_ping=True,   # survive DB restarts / idle disconnects
-        pool_size=5,          # baseline connections
-        max_overflow=10,      # burst capacity
-        pool_recycle=1800,    # recycle after 30 min to dodge stale conns
+        pool_pre_ping=True,  # survive DB restarts / idle disconnects
+        pool_size=5,  # baseline connections
+        max_overflow=10,  # burst capacity
+        pool_recycle=1800,  # recycle after 30 min to dodge stale conns
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

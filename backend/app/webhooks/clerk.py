@@ -148,6 +148,7 @@ async def clerk_webhook(
 # Event handlers
 # ---------------------------------------------------------------------------
 
+
 def _on_user_created(db: Session, data: dict) -> None:
     clerk_user_id = data["id"]
     email = _primary_email(data)
@@ -172,12 +173,14 @@ def _on_user_updated(db: Session, data: dict) -> None:
     user = db.query(User).filter(User.clerk_user_id == clerk_user_id).first()
     if not user:
         log.warning("clerk_user_updated_missing_local_user", clerk_user_id=clerk_user_id)
-        db.add(User(
-            clerk_user_id=clerk_user_id,
-            email=_primary_email(data),
-            full_name=_full_name(data),
-            role="client",
-        ))
+        db.add(
+            User(
+                clerk_user_id=clerk_user_id,
+                email=_primary_email(data),
+                full_name=_full_name(data),
+                role="client",
+            )
+        )
     else:
         user.email = _primary_email(data)
         user.full_name = _full_name(data)
@@ -200,6 +203,7 @@ def _on_user_deleted(db: Session, data: dict) -> None:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _primary_email(data: dict) -> str:
     emails = data.get("email_addresses", [])

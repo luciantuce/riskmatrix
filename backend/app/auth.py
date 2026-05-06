@@ -13,8 +13,8 @@ Flow:
 from functools import lru_cache
 
 import jwt
-from jwt import PyJWKClient
 from fastapi import Depends, Header, HTTPException, status
+from jwt import PyJWKClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -91,7 +91,7 @@ def get_current_user(
             detail="Authorization header must be: Bearer <token>",
         )
 
-    token = authorization[len("Bearer "):].strip()
+    token = authorization[len("Bearer ") :].strip()
     claims = _decode_clerk_jwt(token)
 
     clerk_user_id: str = claims.get("sub", "")
@@ -119,9 +119,7 @@ def get_current_user(
 
     # Webhook hasn't been processed yet — lazy-create from JWT claims.
     email = (
-        claims.get("email")
-        or _email_from_primary(claims)
-        or f"{clerk_user_id}@clerk.placeholder"
+        claims.get("email") or _email_from_primary(claims) or f"{clerk_user_id}@clerk.placeholder"
     )
     first = claims.get("given_name") or claims.get("first_name") or ""
     last = claims.get("family_name") or claims.get("last_name") or ""

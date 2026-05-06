@@ -13,13 +13,12 @@ be captured with:
 The autogen diff compares live DB state vs. Base.metadata, so as long as
 this baseline is applied first, diffs will be clean going forward.
 """
+
 from typing import Sequence, Union
 
-from alembic import op
-
-from app.database import Base
 import app.models  # noqa: F401 — registers all models with Base.metadata
-
+from alembic import op
+from app.database import Base
 
 # revision identifiers, used by Alembic.
 revision: str = "0001_initial"

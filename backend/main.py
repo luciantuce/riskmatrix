@@ -1,20 +1,20 @@
 import ipaddress
+from datetime import datetime, timedelta
 from io import BytesIO
 from typing import Any
-from datetime import datetime, timedelta
 
 import sentry_sdk
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from starlette.middleware.base import BaseHTTPMiddleware
 
+import app.models  # noqa: F401 - register all ORM models
+from app.auth import get_current_user, normalize_role
 from app.config import settings
 from app.database import get_db
 from app.logging import configure, log
-import app.models  # noqa: F401 - register all ORM models
-from app.auth import get_current_user, normalize_role
 from app.models import (
     BundleInclude,
     Client,
@@ -32,19 +32,18 @@ from app.models import (
     Subscription,
     User,
 )
-from app.webhooks.clerk import router as clerk_router
 from app.pdf import build_kit_pdf
 from app.risk_engine import calculate_result_from_risks
 from app.rules import calculate_result
 from app.schemas import (
     AdminGrantSubscriptionPayload,
-    AdminUpdateUserRolePayload,
-    AdminUserResponse,
     AdminKitResponse,
     AdminKitUpdatePayload,
+    AdminUpdateUserRolePayload,
+    AdminUserResponse,
     AnswersPayload,
-    ClientKitSummaryResponse,
     ClientCreate,
+    ClientKitSummaryResponse,
     ClientListItemResponse,
     ClientResponse,
     ClientSummaryResponse,
@@ -58,6 +57,8 @@ from app.schemas import (
     RuleResponse,
 )
 from app.seed_data import PROFILE_GENERAL_DEFINITION, seed_database
+from app.webhooks.clerk import router as clerk_router
+
 
 def _sentry_before_send(event: dict, hint: dict) -> dict | None:
     """Drop 4xx HTTP exceptions — only send 5xx and unhandled errors to Sentry."""
@@ -237,7 +238,7 @@ def _user_has_kit_access(db: Session, user_id: int, kit_id: int) -> bool:
         .filter(
             Subscription.user_id == user_id,
             Subscription.status == "active",
-            Product.active == True,
+            Product.active.is_(True),
             Product.type == "kit",
             Product.kit_id == kit_id,
         )
@@ -253,7 +254,7 @@ def _user_has_kit_access(db: Session, user_id: int, kit_id: int) -> bool:
         .filter(
             Subscription.user_id == user_id,
             Subscription.status == "active",
-            Product.active == True,
+            Product.active.is_(True),
             Product.type == "bundle",
             BundleInclude.kit_id == kit_id,
         )
@@ -273,8 +274,12 @@ def _get_published_version(db: Session, kit_id: int) -> KitVersion:
     version = (
         db.query(KitVersion)
         .options(
-            joinedload(KitVersion.sections).joinedload(KitSection.questions).joinedload(KitQuestion.options),
-            joinedload(KitVersion.sections).joinedload(KitSection.questions).joinedload(KitQuestion.risk_maps),
+            joinedload(KitVersion.sections)
+            .joinedload(KitSection.questions)
+            .joinedload(KitQuestion.options),
+            joinedload(KitVersion.sections)
+            .joinedload(KitSection.questions)
+            .joinedload(KitQuestion.risk_maps),
             joinedload(KitVersion.rules),
             joinedload(KitVersion.templates),
         )
@@ -296,8 +301,15 @@ def _serialize_definition(kit: Kit, version: KitVersion) -> dict[str, Any]:
                 KitOption(value=opt.value, label=opt.label, score_hint=opt.score_hint)
                 for opt in sorted(question.options, key=lambda item: item.display_order)
             ]
-            if question.question_type == "risk_matrix" and not opts and question.responsabil_options_json:
-                opts = [KitOption(value=x, label=x, score_hint=None) for x in question.responsabil_options_json]
+            if (
+                question.question_type == "risk_matrix"
+                and not opts
+                and question.responsabil_options_json
+            ):
+                opts = [
+                    KitOption(value=x, label=x, score_hint=None)
+                    for x in question.responsabil_options_json
+                ]
             questions.append(
                 KitQuestionResponse(
                     id=question.id,
@@ -354,9 +366,15 @@ def _latest_result(db: Session, client_id: int, kit_id: int) -> KitResult | None
 _RISK_LEVEL_RANK = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 
 
-def _build_client_kit_summaries(db: Session, user: User, client_id: int) -> list[ClientKitSummaryResponse]:
-    kits = db.query(Kit).filter(Kit.active == True).order_by(Kit.display_order.asc()).all()
-    visible_kits = kits if _has_full_kit_access(user) else [k for k in kits if _user_has_kit_access(db, user.id, k.id)]
+def _build_client_kit_summaries(
+    db: Session, user: User, client_id: int
+) -> list[ClientKitSummaryResponse]:
+    kits = db.query(Kit).filter(Kit.active.is_(True)).order_by(Kit.display_order.asc()).all()
+    visible_kits = (
+        kits
+        if _has_full_kit_access(user)
+        else [k for k in kits if _user_has_kit_access(db, user.id, k.id)]
+    )
     summaries: list[ClientKitSummaryResponse] = []
 
     for kit in visible_kits:
@@ -398,7 +416,10 @@ def _build_client_summary(kit_summaries: list[ClientKitSummaryResponse]) -> Clie
     latest_kit_name: str | None = None
     latest_updated: datetime | None = None
     for row in completed:
-        if row.risk_level and (highest is None or _RISK_LEVEL_RANK.get(row.risk_level, 0) > _RISK_LEVEL_RANK.get(highest, 0)):
+        if row.risk_level and (
+            highest is None
+            or _RISK_LEVEL_RANK.get(row.risk_level, 0) > _RISK_LEVEL_RANK.get(highest, 0)
+        ):
             highest = row.risk_level
             highest_kit_name = row.kit_name
         if row.updated_at and (latest_updated is None or row.updated_at > latest_updated):
@@ -450,7 +471,12 @@ def get_me(user: User = Depends(get_current_user)):
 def list_products(
     db: Session = Depends(get_db),
 ):
-    return db.query(Product).filter(Product.active == True).order_by(Product.display_order.asc()).all()
+    return (
+        db.query(Product)
+        .filter(Product.active.is_(True))
+        .order_by(Product.display_order.asc())
+        .all()
+    )
 
 
 @app.get("/api/clients", response_model=list[ClientListItemResponse])
@@ -579,7 +605,7 @@ def save_client_profile(
 
 @app.get("/api/kits", response_model=list[KitSummaryResponse])
 def list_kits(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    kits = db.query(Kit).filter(Kit.active == True).order_by(Kit.display_order.asc()).all()
+    kits = db.query(Kit).filter(Kit.active.is_(True)).order_by(Kit.display_order.asc()).all()
     if _has_full_kit_access(user):
         return kits
     return [kit for kit in kits if _user_has_kit_access(db, user.id, kit.id)]
@@ -622,7 +648,9 @@ def get_kit_submission_view(
             tariff_adjustment_pct=getattr(result, "tariff_adjustment_pct", 0.0),
             active_risks_json=getattr(result, "active_risks_json", []),
             result_json=result.result_json,
-        ).model_dump() if result else None,
+        ).model_dump()
+        if result
+        else None,
     }
 
 
@@ -652,15 +680,18 @@ def save_kit_submission(
     submission.kit_version_id = version.id
     db.flush()
 
-    has_risk_maps = any(
-        q.risk_maps for s in version.sections for q in s.questions
-    )
+    has_risk_maps = any(q.risk_maps for s in version.sections for q in s.questions)
     if has_risk_maps:
         calc = calculate_result_from_risks(db, version.id, payload.answers)
     else:
         rules_payload = [
-            {"rule_code": r.rule_code, "priority": r.priority, "active": r.active,
-             "conditions_json": r.conditions_json, "effects_json": r.effects_json}
+            {
+                "rule_code": r.rule_code,
+                "priority": r.priority,
+                "active": r.active,
+                "conditions_json": r.conditions_json,
+                "effects_json": r.effects_json,
+            }
             for r in version.rules
         ]
         calc = calculate_result(payload.answers, rules_payload)
@@ -733,7 +764,9 @@ def get_kit_pdf(
     if not submission or not result:
         raise HTTPException(status_code=400, detail="Submission or result missing")
 
-    template = next((item for item in version.templates if item.document_type == "result_pdf"), None)
+    template = next(
+        (item for item in version.templates if item.document_type == "result_pdf"), None
+    )
     question_labels = {}
     for section in version.sections:
         for question in section.questions:
@@ -773,7 +806,9 @@ def get_admin_kit(
     kit = _get_kit(db, kit_code)
     version = _get_published_version(db, kit.id)
     definition = _serialize_definition(kit, version)
-    template = next((item for item in version.templates if item.document_type == "result_pdf"), None)
+    template = next(
+        (item for item in version.templates if item.document_type == "result_pdf"), None
+    )
     return AdminKitResponse(
         kit=KitDefinitionResponse(**definition),
         rules=[
@@ -820,9 +855,13 @@ def update_admin_kit(
     for rule in list(version.rules):
         db.delete(rule)
 
-    template = next((item for item in version.templates if item.document_type == "result_pdf"), None)
+    template = next(
+        (item for item in version.templates if item.document_type == "result_pdf"), None
+    )
     if not template:
-        template = KitDocumentTemplate(kit_version_id=version.id, document_type="result_pdf", title=kit.name)
+        template = KitDocumentTemplate(
+            kit_version_id=version.id, document_type="result_pdf", title=kit.name
+        )
         db.add(template)
 
     db.flush()
@@ -909,9 +948,7 @@ def update_user_role(
 
     if current_role == "super_admin" and requested_role != "super_admin":
         super_admin_count = (
-            db.query(User)
-            .filter(User.deleted_at.is_(None), User.role.in_(["super_admin"]))
-            .count()
+            db.query(User).filter(User.deleted_at.is_(None), User.role.in_(["super_admin"])).count()
         )
         if super_admin_count <= 1:
             raise HTTPException(status_code=400, detail="Cannot demote the last super_admin")
@@ -939,12 +976,7 @@ def list_admin_users(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin_user),
 ):
-    users = (
-        db.query(User)
-        .filter(User.deleted_at.is_(None))
-        .order_by(User.created_at.asc())
-        .all()
-    )
+    users = db.query(User).filter(User.deleted_at.is_(None)).order_by(User.created_at.asc()).all()
     return [
         AdminUserResponse(
             id=user.id,
@@ -968,7 +1000,11 @@ def grant_user_subscription(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    product = db.query(Product).filter(Product.code == payload.product_code, Product.active == True).first()
+    product = (
+        db.query(Product)
+        .filter(Product.code == payload.product_code, Product.active.is_(True))
+        .first()
+    )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -999,6 +1035,6 @@ def grant_user_subscription(
     db.commit()
     db.refresh(sub)
     return {"ok": True, "subscription_id": sub.id, "already_active": False}
-    Product,
-    Subscription,
-    ProductSummaryResponse,
+    (Product,)
+    (Subscription,)
+    (ProductSummaryResponse,)

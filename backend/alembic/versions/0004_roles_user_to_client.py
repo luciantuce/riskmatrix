@@ -4,11 +4,12 @@ Revision ID: 0004_roles_user_to_client
 Revises: 0003_user_id_not_null
 Create Date: 2026-04-30
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0004_roles_user_to_client"

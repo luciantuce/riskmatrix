@@ -74,25 +74,31 @@ def calculate_result_from_risks(
 
                 risk_scores[risk.id] = risk_scores.get(risk.id, 0) + score
                 risk_responsibles[risk.id] = responsabil or "delegat"
-                responsibility_entries.append({
-                    "area": risk.name,
-                    "responsible_party": responsabil or "Entitate",
-                    "risk_code": risk.code,
-                })
+                responsibility_entries.append(
+                    {
+                        "area": risk.name,
+                        "responsible_party": responsabil or "Entitate",
+                        "risk_code": risk.code,
+                    }
+                )
 
     total_score = sum(risk_scores.values())
     risk_level = _score_to_level(total_score)
     tariff_pct = TARIFF_ADJUSTMENT.get(risk_level, 0)
 
     active_risks = []
-    for rid, r in [(m.risk_id, m.risk) for s in version.sections for q in s.questions for m in q.risk_maps]:
+    for rid, r in [
+        (m.risk_id, m.risk) for s in version.sections for q in s.questions for m in q.risk_maps
+    ]:
         if rid in risk_scores and r.code not in [ar["code"] for ar in active_risks]:
-            active_risks.append({
-                "code": r.code,
-                "name": r.name,
-                "score": risk_scores[rid],
-                "responsible": risk_responsibles.get(rid, "delegat"),
-            })
+            active_risks.append(
+                {
+                    "code": r.code,
+                    "name": r.name,
+                    "score": risk_scores[rid],
+                    "responsible": risk_responsibles.get(rid, "delegat"),
+                }
+            )
 
     dedup_matrix: list[dict] = []
     seen = set()
@@ -101,7 +107,9 @@ def calculate_result_from_risks(
         if key in seen:
             continue
         seen.add(key)
-        dedup_matrix.append({"area": entry["area"], "responsible_party": entry["responsible_party"]})
+        dedup_matrix.append(
+            {"area": entry["area"], "responsible_party": entry["responsible_party"]}
+        )
 
     risk_flags = [ar["code"] for ar in active_risks]
 

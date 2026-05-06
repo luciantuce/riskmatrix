@@ -4,11 +4,12 @@ Revision ID: 0005_products_subscriptions
 Revises: 0004_roles_user_to_client
 Create Date: 2026-04-30
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0005_products_subscriptions"
@@ -37,7 +38,9 @@ def upgrade() -> None:
 
     op.create_table(
         "bundle_includes",
-        sa.Column("bundle_product_id", sa.Integer(), sa.ForeignKey("products.id"), primary_key=True),
+        sa.Column(
+            "bundle_product_id", sa.Integer(), sa.ForeignKey("products.id"), primary_key=True
+        ),
         sa.Column("kit_id", sa.Integer(), sa.ForeignKey("kits.id"), primary_key=True),
     )
 
@@ -57,7 +60,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_unique_constraint("uq_subscriptions_stripe_subscription_id", "subscriptions", ["stripe_subscription_id"])
+    op.create_unique_constraint(
+        "uq_subscriptions_stripe_subscription_id", "subscriptions", ["stripe_subscription_id"]
+    )
     op.create_index("ix_subscriptions_user_id", "subscriptions", ["user_id"])
     op.create_index("ix_subscriptions_product_id", "subscriptions", ["product_id"])
     op.create_index("ix_subscriptions_status", "subscriptions", ["status"])
@@ -65,7 +70,9 @@ def upgrade() -> None:
     op.create_table(
         "invoices",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("subscription_id", sa.Integer(), sa.ForeignKey("subscriptions.id"), nullable=True),
+        sa.Column(
+            "subscription_id", sa.Integer(), sa.ForeignKey("subscriptions.id"), nullable=True
+        ),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("stripe_invoice_id", sa.String(), nullable=True),
         sa.Column("amount_cents", sa.Integer(), nullable=False, server_default="0"),

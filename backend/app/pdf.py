@@ -9,7 +9,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-
 FONT_REGULAR = "RiskMatrix-Regular"
 FONT_BOLD = "RiskMatrix-Bold"
 FONTS_REGISTERED = False
@@ -85,7 +84,14 @@ def build_kit_pdf(
             return height - 50
         return current_y
 
-    def draw_wrapped(text: str, current_x: int, current_y: int, font_name: str, font_size: int, line_height: int = 14) -> int:
+    def draw_wrapped(
+        text: str,
+        current_x: int,
+        current_y: int,
+        font_name: str,
+        font_size: int,
+        line_height: int = 14,
+    ) -> int:
         c.setFont(font_name, font_size)
         lines = simpleSplit(_pdf_safe_text(text), font_name, font_size, width - current_x * 2)
         for line in lines:
@@ -139,9 +145,13 @@ def build_kit_pdf(
     y -= 14
     c.drawString(x, y, _pdf_safe_text(f"Nivel risc: {result.get('risk_level', 'LOW')}"))
     y -= 14
-    c.drawString(x, y, _pdf_safe_text(f"Nivel implicare: {result.get('engagement_level', 'standard')}"))
+    c.drawString(
+        x, y, _pdf_safe_text(f"Nivel implicare: {result.get('engagement_level', 'standard')}")
+    )
     y -= 14
-    c.drawString(x, y, _pdf_safe_text(f"Ajustare onorariu: +{result.get('tariff_adjustment_pct', 0)}%"))
+    c.drawString(
+        x, y, _pdf_safe_text(f"Ajustare onorariu: +{result.get('tariff_adjustment_pct', 0)}%")
+    )
     y -= 14
 
     active_risks = result.get("active_risks_json") or []
@@ -173,7 +183,9 @@ def build_kit_pdf(
         c.setFont(font_regular, 10)
         for row in matrix:
             y = draw_wrapped(row.get("area") or "Domeniu", x, y, font_bold, 10, 14)
-            y = draw_wrapped(f"Responsabil: {row.get('responsible_party')}", x + 10, y, font_regular, 10, 14)
+            y = draw_wrapped(
+                f"Responsabil: {row.get('responsible_party')}", x + 10, y, font_regular, 10, 14
+            )
             y -= 4
             y = new_page_if_needed(y)
 
@@ -182,12 +194,20 @@ def build_kit_pdf(
     c.line(x, y, width - x, y)
     y -= 28
     c.setFont(font_bold, 11)
-    c.drawString(x, y, _pdf_safe_text(template.get("signature_block_text") or "Semnatura administrator / reprezentant legal"))
+    c.drawString(
+        x,
+        y,
+        _pdf_safe_text(
+            template.get("signature_block_text") or "Semnatura administrator / reprezentant legal"
+        ),
+    )
     y -= 18
     c.setFont(font_regular, 10)
     c.drawString(x, y, _pdf_safe_text("Nume: __________________________________________"))
     y -= 18
-    c.drawString(x, y, _pdf_safe_text("Data: ____________________   Semnatura: ____________________"))
+    c.drawString(
+        x, y, _pdf_safe_text("Data: ____________________   Semnatura: ____________________")
+    )
     c.save()
     buffer.seek(0)
     return buffer.getvalue()

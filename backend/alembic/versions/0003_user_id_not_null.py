@@ -13,11 +13,12 @@ Safety check: this migration verifies there are no remaining NULLs before
 flipping the constraint. If any row has user_id IS NULL, the migration
 aborts with a clear error.
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0003_user_id_not_null"

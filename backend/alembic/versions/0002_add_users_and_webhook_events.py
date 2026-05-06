@@ -18,11 +18,12 @@ Backfill strategy:
   clerk_user_id and assigns all orphan rows to it. The placeholder MUST be
   replaced with a real clerk_user_id before going to production with real data.
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0002_add_users"
@@ -74,7 +75,11 @@ def upgrade() -> None:
     op.add_column("clients", sa.Column("user_id", sa.Integer(), nullable=True))
     op.add_column("clients", sa.Column("deleted_at", sa.DateTime(), nullable=True))
     op.create_foreign_key(
-        "fk_clients_user_id", "clients", "users", ["user_id"], ["id"],
+        "fk_clients_user_id",
+        "clients",
+        "users",
+        ["user_id"],
+        ["id"],
     )
     op.create_index("ix_clients_user_id", "clients", ["user_id"])
     op.create_index("ix_clients_deleted_at", "clients", ["deleted_at"])
@@ -82,14 +87,22 @@ def upgrade() -> None:
     # ---- kit_submissions: add user_id NULLABLE ----------------------------
     op.add_column("kit_submissions", sa.Column("user_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
-        "fk_kit_submissions_user_id", "kit_submissions", "users", ["user_id"], ["id"],
+        "fk_kit_submissions_user_id",
+        "kit_submissions",
+        "users",
+        ["user_id"],
+        ["id"],
     )
     op.create_index("ix_kit_submissions_user_id", "kit_submissions", ["user_id"])
 
     # ---- kit_results: add user_id NULLABLE --------------------------------
     op.add_column("kit_results", sa.Column("user_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
-        "fk_kit_results_user_id", "kit_results", "users", ["user_id"], ["id"],
+        "fk_kit_results_user_id",
+        "kit_results",
+        "users",
+        ["user_id"],
+        ["id"],
     )
     op.create_index("ix_kit_results_user_id", "kit_results", ["user_id"])
 

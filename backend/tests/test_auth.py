@@ -140,7 +140,9 @@ def test_user_has_kit_access_false_for_inactive_status(db):
     db.add_all([user, kit, product])
     db.commit()
 
-    sub = Subscription(user_id=user.id, product_id=product.id, status="canceled", billing_cycle="monthly")
+    sub = Subscription(
+        user_id=user.id, product_id=product.id, status="canceled", billing_cycle="monthly"
+    )
     db.add(sub)
     db.commit()
 

@@ -1,6 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -12,6 +24,7 @@ class User(Base):
     Created via Clerk webhook `user.created`; lazy-created from JWT claims
     if a request arrives before the webhook is processed.
     """
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -26,7 +39,9 @@ class User(Base):
     clients = relationship("Client", back_populates="user")
     kit_submissions = relationship("KitSubmission", back_populates="user")
     kit_results = relationship("KitResult", back_populates="user")
-    subscriptions = relationship("Subscription", back_populates="user", cascade="all, delete-orphan")
+    subscriptions = relationship(
+        "Subscription", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class WebhookEvent(Base):
@@ -34,11 +49,12 @@ class WebhookEvent(Base):
     Idempotency log for inbound webhook events from Clerk and Stripe.
     Each event is identified by (source, external_id); duplicates short-circuit.
     """
+
     __tablename__ = "webhook_events"
 
     id = Column(Integer, primary_key=True, index=True)
-    source = Column(String, nullable=False)        # 'clerk' | 'stripe'
-    external_id = Column(String, nullable=False)   # 'evt_xxx'
+    source = Column(String, nullable=False)  # 'clerk' | 'stripe'
+    external_id = Column(String, nullable=False)  # 'evt_xxx'
     event_type = Column(String, nullable=False)
     payload = Column(JSON, nullable=False)
     processed_at = Column(DateTime, nullable=True)
@@ -64,8 +80,12 @@ class Client(Base):
     deleted_at = Column(DateTime, nullable=True, index=True)
 
     user = relationship("User", back_populates="clients")
-    profile = relationship("ClientProfile", back_populates="client", uselist=False, cascade="all, delete-orphan")
-    kit_submissions = relationship("KitSubmission", back_populates="client", cascade="all, delete-orphan")
+    profile = relationship(
+        "ClientProfile", back_populates="client", uselist=False, cascade="all, delete-orphan"
+    )
+    kit_submissions = relationship(
+        "KitSubmission", back_populates="client", cascade="all, delete-orphan"
+    )
     kit_results = relationship("KitResult", back_populates="client", cascade="all, delete-orphan")
 
 
@@ -119,7 +139,9 @@ class Product(Base):
 
     kit = relationship("Kit", back_populates="products")
     subscriptions = relationship("Subscription", back_populates="product")
-    included_kits = relationship("BundleInclude", back_populates="bundle_product", cascade="all, delete-orphan")
+    included_kits = relationship(
+        "BundleInclude", back_populates="bundle_product", cascade="all, delete-orphan"
+    )
 
 
 class BundleInclude(Base):
@@ -140,7 +162,9 @@ class Subscription(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     stripe_subscription_id = Column(String, unique=True, nullable=True, index=True)
     stripe_customer_id = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="active", index=True)  # active | canceled | past_due | unpaid
+    status = Column(
+        String, nullable=False, default="active", index=True
+    )  # active | canceled | past_due | unpaid
     billing_cycle = Column(String, nullable=False, default="monthly")  # monthly | yearly
     current_period_start = Column(DateTime, nullable=True)
     current_period_end = Column(DateTime, nullable=True)
@@ -182,9 +206,13 @@ class KitVersion(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     kit = relationship("Kit", back_populates="versions")
-    sections = relationship("KitSection", back_populates="kit_version", cascade="all, delete-orphan")
+    sections = relationship(
+        "KitSection", back_populates="kit_version", cascade="all, delete-orphan"
+    )
     rules = relationship("KitRule", back_populates="kit_version", cascade="all, delete-orphan")
-    templates = relationship("KitDocumentTemplate", back_populates="kit_version", cascade="all, delete-orphan")
+    templates = relationship(
+        "KitDocumentTemplate", back_populates="kit_version", cascade="all, delete-orphan"
+    )
     submissions = relationship("KitSubmission", back_populates="kit_version")
     results = relationship("KitResult", back_populates="kit_version")
 
@@ -204,6 +232,7 @@ class KitSection(Base):
 
 class Risk(Base):
     """Biblioteca celor 50 riscuri structurale (R1-R50)."""
+
     __tablename__ = "risks"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -215,11 +244,14 @@ class Risk(Base):
     probability_default = Column(Integer, default=2, nullable=False)
     display_order = Column(Integer, default=0, nullable=False)
 
-    question_maps = relationship("QuestionRiskMap", back_populates="risk", cascade="all, delete-orphan")
+    question_maps = relationship(
+        "QuestionRiskMap", back_populates="risk", cascade="all, delete-orphan"
+    )
 
 
 class QuestionRiskMap(Base):
     """Mapare întrebare → risc: când răspunsul e DA sau NU, se activează riscul."""
+
     __tablename__ = "question_risk_maps"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -249,8 +281,12 @@ class KitQuestion(Base):
     responsabil_options_json = Column(JSON, nullable=True)
 
     section = relationship("KitSection", back_populates="questions")
-    options = relationship("KitQuestionOption", back_populates="question", cascade="all, delete-orphan")
-    risk_maps = relationship("QuestionRiskMap", back_populates="question", cascade="all, delete-orphan")
+    options = relationship(
+        "KitQuestionOption", back_populates="question", cascade="all, delete-orphan"
+    )
+    risk_maps = relationship(
+        "QuestionRiskMap", back_populates="question", cascade="all, delete-orphan"
+    )
 
 
 class KitQuestionOption(Base):
