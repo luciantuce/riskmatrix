@@ -78,7 +78,8 @@ jobs:
       - name: Build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8010
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci
+          # Clerk publishable key is intentionally public (pk_test_* = safe to expose)
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_aW50ZXJuYWwtbXVkZmlzaC05OS5jbGVyay5hY2NvdW50cy5kZXYk
           NEXT_PUBLIC_SENTRY_DSN: ""
           NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
           NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
